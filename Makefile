@@ -16,7 +16,9 @@ BUSYTEX_TEXBIN       = ctangle otangle tangle tangleboot ctangleboot tie
 BUSYTEX_WEB2CBIN     = fixwrites makecpool splitup web2c
 
 
-TOTAL_MEMORY         = 536870912
+# Dynamic memory: start small, grow as needed
+INITIAL_MEMORY       = 67108864    # 64MB initial
+MAXIMUM_MEMORY       = 536870912   # 512MB max
 CFLAGS_OPT_native    = -O3
 # Explicitly enable exceptions and RTTI in case they are disabled by default (such as in Cosmopolitan Libc).
 CXXFLAGS_native      = -fexceptions -frtti
@@ -132,7 +134,7 @@ CFLAGS_LUATEX       := -Dmain='__attribute__((visibility(\"default\")))busymain_
 # uuid_generate_random feature request: https://github.com/emscripten-core/emscripten/issues/12093
 CFLAGS_FONTCONFIG_wasm= -Duuid_generate_random=uuid_generate -pthread
 # -pthread
-CFLAGS_BIBTEX_wasm      = $(CFLAGS_BIBTEX) -sTOTAL_MEMORY=$(TOTAL_MEMORY)
+CFLAGS_BIBTEX_wasm      = $(CFLAGS_BIBTEX) -sINITIAL_MEMORY=$(INITIAL_MEMORY) -sALLOW_MEMORY_GROWTH=1
 CFLAGS_ICU_wasm         = $(CFLAGS_OPT_wasm) -sERROR_ON_UNDEFINED_SYMBOLS=0
 CFLAGS_TEXLIVE_wasm     = -I$(abspath build/wasm/texlive/libs/icu/include)   -I$(abspath source/fontconfig) $(CFLAGS_OPT_wasm) -sERROR_ON_UNDEFINED_SYMBOLS=0 -Wno-error=unused-but-set-variable
 CXXFLAGS_TEXLIVE_wasm   = $(CFLAGS_TEXLIVE_wasm)
@@ -200,7 +202,7 @@ OPTS_BUSYTEX_COMPILE_wasm   = -DBUSYTEX_MAKEINDEX -DBUSYTEX_KPSE -DBUSYTEX_BIBTE
 OPTS_BUSYTEX_LINK = --static -static    -static-libstdc++ -static-libgcc
 
 OPTS_BUSYTEX_LINK_native =  $(OPTS_BUSYTEX_LINK)    -ldl -lm -pthread -lpthread -Wl,--unresolved-symbols=ignore-all
-OPTS_BUSYTEX_LINK_wasm   =  $(OPTS_BUSYTEX_LINK) -Wl,--unresolved-symbols=ignore-all -Wl,-error-limit=0 -sTOTAL_MEMORY=$(TOTAL_MEMORY) -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=1 -sERROR_ON_UNDEFINED_SYMBOLS=0 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=busytex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
+OPTS_BUSYTEX_LINK_wasm   =  $(OPTS_BUSYTEX_LINK) -Wl,--unresolved-symbols=ignore-all -Wl,-error-limit=0 -sINITIAL_MEMORY=$(INITIAL_MEMORY) -sMAXIMUM_MEMORY=$(MAXIMUM_MEMORY) -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=1 -sERROR_ON_UNDEFINED_SYMBOLS=0 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=busytex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
 
 ##############################################################################################################################
 
@@ -361,6 +363,25 @@ build/%/busytex build/%/busytex.js:
 	$(CC_$*)  -o    $(basename $@).o -c busytex.c  $(OPTS_BUSYTEX_COMPILE_$*) $(CFLAGS_OPT_$*)
 	$(CXX_$*) -o $@ $(basename $@).o $(addprefix build/$*/texlive/texk/web2c/, $(OBJ_XETEX) $(OBJ_PDFTEX) $(OBJ_LUAHBTEX)) $(addprefix build/$*/, $(OBJ_BIBTEX) $(OBJ_DVIPDF) $(OBJ_DEPS) $(OBJ_MAKEINDEX))  $(addprefix build/$*/texlive/texk/kpathsea/, $(OBJ_KPATHSEA))   $(OPTS_BUSYTEX_LINK_$*)
 	tar -cf $(basename $@).tar build/$*/texlive/texk/web2c/*.c
+
+# Minimal pdfTeX-only build
+OBJ_DEPS_PDFTEX = $(addprefix texlive/libs/, libpng/libpng.a pplib/libpplib.a zlib/libz.a zziplib/libzzip.a xpdf/libxpdf.a) texlive/texk/kpathsea/.libs/libkpathsea.a
+OPTS_BUSYTEX_LINK_PDFTEX_wasm = $(OPTS_BUSYTEX_LINK) -Wl,--unresolved-symbols=ignore-all -Wl,-error-limit=0 -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=268435456 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=0 -sERROR_ON_UNDEFINED_SYMBOLS=0 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=pdftex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
+
+build/wasm/pdftex.js:
+	mkdir -p $(dir $@)
+	$(CC_wasm) -o build/wasm/pdftex.o -c busytex.c -DBUSYTEX_PDFTEX $(CFLAGS_OPT_wasm)
+	$(CXX_wasm) -o $@ build/wasm/pdftex.o $(addprefix build/wasm/texlive/texk/web2c/, $(OBJ_PDFTEX)) $(addprefix build/wasm/, $(OBJ_DEPS_PDFTEX)) $(addprefix build/wasm/texlive/texk/kpathsea/, $(OBJ_KPATHSEA)) $(OPTS_BUSYTEX_LINK_PDFTEX_wasm)
+
+# Minimal XeTeX-only build (requires more deps: fontconfig, harfbuzz, icu, freetype, etc.)
+# XeTeX needs 32MB initial due to ICU data tables (~24MB static data)
+OBJ_DEPS_XETEX = $(addprefix texlive/libs/, harfbuzz/libharfbuzz.a graphite2/libgraphite2.a teckit/libTECkit.a libpng/libpng.a) fontconfig/src/.libs/libfontconfig.a $(addprefix texlive/libs/, freetype2/libfreetype.a zlib/libz.a icu/icu-build/lib/libicuuc.a icu/icu-build/lib/libicudata.a) texlive/texk/kpathsea/.libs/libkpathsea.a expat/libexpat.a texlive/texk/dvipdfm-x/busytex_xdvipdfmx.a
+OPTS_BUSYTEX_LINK_XETEX_wasm = $(OPTS_BUSYTEX_LINK) -Wl,--unresolved-symbols=ignore-all -Wl,-error-limit=0 -sINITIAL_MEMORY=33554432 -sMAXIMUM_MEMORY=268435456 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=0 -sERROR_ON_UNDEFINED_SYMBOLS=0 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=xetex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
+
+build/wasm/xetex.js:
+	mkdir -p $(dir $@)
+	$(CC_wasm) -o build/wasm/xetex.o -c busytex.c -DBUSYTEX_XETEX -DBUSYTEX_XDVIPDFMX $(CFLAGS_OPT_wasm)
+	$(CXX_wasm) -o $@ build/wasm/xetex.o $(addprefix build/wasm/texlive/texk/web2c/, $(OBJ_XETEX)) $(addprefix build/wasm/, $(OBJ_DEPS_XETEX)) $(addprefix build/wasm/texlive/texk/kpathsea/, $(OBJ_KPATHSEA)) $(OPTS_BUSYTEX_LINK_XETEX_wasm)
 
 build/native/busytexextra: build/native/busytex                              build/texlive-extra.txt 
 	$(PYTHON) packfs.py -i build/texlive-extra/ -o packfs.h --prefix=/texlive --ld=$(LD_native) --exclude '\.a|\.so|\.pod|\.ld|\.h|\.log'
@@ -527,6 +548,23 @@ wasm:
 	$(MAKE) build/wasm/texlivedependencies
 	$(MAKE) build/wasm/busytexapplets
 	$(MAKE) build/wasm/busytex.js
+
+.PHONY: wasm-pdftex
+wasm-pdftex:
+	$(MAKE) build/wasm/texlive.configured
+	$(MAKE) build/wasm/texlivedependencies
+	$(MAKE) build/wasm/busytexapplets
+	$(MAKE) build/wasm/pdftex.js
+
+.PHONY: wasm-xetex
+wasm-xetex:
+	$(MAKE) build/wasm/texlive.configured
+	$(MAKE) build/wasm/texlivedependencies
+	$(MAKE) build/wasm/busytexapplets
+	$(MAKE) build/wasm/xetex.js
+
+.PHONY: wasm-all
+wasm-all: wasm wasm-pdftex wasm-xetex
 
 ################################################################################################################
 
