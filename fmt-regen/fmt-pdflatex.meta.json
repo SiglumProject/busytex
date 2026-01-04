@@ -1,0 +1,24 @@
+{
+  "name": "fmt-pdflatex",
+  "files": [
+    {
+      "path": "/texlive/texmf-dist/texmf-var/web2c/pdftex",
+      "name": "pdfetex.fmt",
+      "start": 0,
+      "end": 4382286
+    },
+    {
+      "path": "/texlive/texmf-dist/texmf-var/web2c/pdftex",
+      "name": "pdflatex.fmt",
+      "start": 4382286,
+      "end": 15960664
+    },
+    {
+      "path": "/texlive/texmf-dist/texmf-var/web2c/pdftex",
+      "name": "pdftex.fmt",
+      "start": 15960664,
+      "end": 20342958
+    }
+  ],
+  "totalSize": 20342958
+}

@@ -1,0 +1,18 @@
+{
+  "name": "fmt-xelatex",
+  "files": [
+    {
+      "path": "/texlive/texmf-dist/texmf-var/web2c/xetex",
+      "name": "xelatex.fmt",
+      "start": 0,
+      "end": 27261814
+    },
+    {
+      "path": "/texlive/texmf-dist/texmf-var/web2c/xetex",
+      "name": "xetex.fmt",
+      "start": 27261814,
+      "end": 44350732
+    }
+  ],
+  "totalSize": 44350732
+}
