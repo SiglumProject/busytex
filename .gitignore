@@ -12,3 +12,8 @@ example/bibtex/
 build/
 source/
 dist/
+*.iso
+.DS_Store
+
+# One-off scripts
+test-install.sh
