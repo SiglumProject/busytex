@@ -1,6 +1,6 @@
-# Programs from TexLive 2026 compiled with Emscripten into a single fully static binary (x86_64-linux / WASM)
+# TeX Live 2026 compiled into a single multi-engine binary — WebAssembly (via Emscripten) and static x86_64-linux (via glibc)
 
-Currently compiles into a **fully static binary** (via musl on Alpine Linux):
+Compiles into a **WebAssembly module** (via Emscripten) and a **static x86_64-linux binary** (via glibc, used as the build-time `install-tl` helper):
 - xetex
 - pdftex
 - luahbtex
@@ -24,20 +24,15 @@ Future work:
 MIT
 
 ### Usage
-```shell
-# wasm version, download latest compiled assets, launch the web server example.py and then go to http://localhost:8080/example/example.html
-mkdir -p dist
-wget -P dist --backups=1 $(printf "https://github.com/busytex/busytex/releases/latest/download/%s " busytex_pipeline.js busytex_worker.js    busytex.wasm busytex.js texlive-basic.js texlive-basic.data    ubuntu-texlive-latex-extra.data ubuntu-texlive-latex-extra.js    ubuntu-texlive-latex-recommended.data ubuntu-texlive-latex-recommended.js    ubuntu-texlive-science.data ubuntu-texlive-science.js)
-python3 example/example.py
 
-# native version
-sh example/example.sh
-```
-
-```shell
-wget http://mirrors.ctan.org/systems/texlive/Images/texlive2023-20230313.iso
-split -b2G -d texlive2023-20230313.iso texlive2023-20230313.iso.
-```
+This is the **SiglumProject fork** of busytex ([SiglumProject/busytex](https://github.com/SiglumProject/busytex)),
+used as the engine build for the `@siglum/engine` superproject
+([SiglumProject/siglum](https://github.com/SiglumProject/siglum)), where it lives as
+the `busytex` submodule. This repo produces the `busytex.wasm` engine and the
+packaged `texlive-basic.data`; the superproject then splits that into the browser
+bundles and serves them to the siglum runtime — see the superproject's
+`docs/building.md` for the full packaging/distribution flow. This fork does not
+publish prebuilt release artifacts; build them with `./build-wasm.sh` (below).
 
 ### Help needed
 - single page HTML5 webapp: https://diveinto.html5doctor.com/offline.html
@@ -61,50 +56,31 @@ split -b2G -d texlive2023-20230313.iso texlive2023-20230313.iso.
 - pre-parse ProvidesPackage meta for data packages
 
 ### Building from source
+
+The build is driven by `./build-wasm.sh`, which runs each stage in a container.
+The pipeline (`wasm`/`all`) builds both the native helper and the WASM binary inside
+`emscripten/emsdk:3.1.43`; the standalone `native` command uses `ubuntu:22.04`.
+
+Prerequisites: **Podman**, **Bun** (for bundle splitting), and ~10 GB free disk for
+the TeX Live ISO.
+
 ```shell
-# install dependencies: wget, cmake, gperf, p7zip-full, emscripten
-apt-get install wget cmake gperf p7zip-full 
-git clone https://github.com/emscripten-core/emsdk
-cd emsdk
-./emsdk update-tags
-./emsdk install tot
-./emsdk activate tot
-source emsdk_env.sh
-
-# clone busytex
-git clone https://github.com/busytex/busytex
-cd busytex
-
-# set make parallelism
-export MAKEFLAGS=-j8
-
-# download and patch texlive into ./source
-make texlive
-
-# build native tools and fonts file into ./build/native
-make native
-
-# smoke test native binaries
-make test
-
-# build wasm tools into ./build/wasm
-make wasm
-
-# build TeX Directory Structure (TDS)
-make tds-basic
-
-# test native binaries
-sh example/example.sh
-
-# reproduce and pack Ubuntu TexLive packages into wasm data files
-make build/wasm/texlive-basic.js
-
-# copies binaries and TexLive TDS into ./dist
-make dist-native dist-wasm
-
-# remove ./build and ./source completely
-make clean
+./build-wasm.sh all      # full pipeline: wasm → texlive → formats → package → bundles
 ```
+
+Or run a single stage (`./build-wasm.sh` with no args lists them all):
+
+```shell
+./build-wasm.sh wasm     # build native + WASM binaries (build/wasm/busytex.{wasm,js})
+./build-wasm.sh texlive  # install TeX Live packages via install-tl
+./build-wasm.sh formats  # regenerate .fmt files with the WASM binary
+./build-wasm.sh package  # create build/wasm/texlive-basic.data
+./build-wasm.sh bundles  # split into browser bundles (siglum superproject)
+```
+
+To bump the TeX Live version, update the URLs at the top of the `Makefile`. The full
+procedure, including downstream packaging and deployment, is documented in the siglum
+superproject's `docs/building.md` and `docs/upgrading-texlive.md`.
 
 ### References
 - [pdftex.js](https://github.com/dmonad/pdftex.js)
