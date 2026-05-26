@@ -13,19 +13,13 @@ Supported architecture targets:
 - x86_64-linux
 - WASM32
 
-Future work:
-- mf-nowin
-- LuaMetaTex / LMTX (lua)
-- tlmgr (perl, web requests)
-- Biber (perl)
-- mktexlsr, fmtutil, updmap (perl)
-
 ### License
 MIT
 
 ### Usage
 
-This is the **SiglumProject fork** of busytex ([SiglumProject/busytex](https://github.com/SiglumProject/busytex)),
+This is the **SiglumProject fork** of [busytex](https://github.com/busytex/busytex)
+(this repo: [SiglumProject/busytex](https://github.com/SiglumProject/busytex)),
 used as the engine build for the `@siglum/engine` superproject
 ([SiglumProject/siglum](https://github.com/SiglumProject/siglum)), where it lives as
 the `busytex` submodule. This repo produces the `busytex.wasm` engine and the
@@ -34,26 +28,8 @@ bundles and serves them to the siglum runtime — see the superproject's
 `docs/building.md` for the full packaging/distribution flow. This fork does not
 publish prebuilt release artifacts; build them with `./build-wasm.sh` (below).
 
-### Help needed
-- single page HTML5 webapp: https://diveinto.html5doctor.com/offline.html
-- refactor data packages subsystem in Emscripten: https://github.com/emscripten-core/emscripten/issues/14385
-- LLVM's support for localizing global system in WASM object files: https://bugs.llvm.org/show_bug.cgi?id=51279
-- upstream build sequence to TexLive: https://tug.org/pipermail/tlbuild/2021q1/004806.html
-- various Emscripten improvements: https://github.com/emscripten-core/emscripten/issues/12093, https://github.com/emscripten-core/emscripten/issues/12256, https://github.com/emscripten-core/emscripten/issues/13466, https://github.com/emscripten-core/emscripten/issues/13219
-- better error catching at all stages including WASM module initialization: https://github.com/emscripten-core/emscripten/issues/14777
-- explore defining DLLPROC instead of redefining main functions
-- complete investigation of feasibility of porting Biber to WASM/browser: https://github.com/plk/biber/issues/338, https://github.com/busytex/buildbiber
-- review shipped TexLive packages in order to review useless files to save space
-- review fonts / fontmaps / hyphenation shipped in TexLive packages
-- optimizing binary size. any stripping possible?
-- compile for x86_64-linux-glibc with clang (to match WASM toolchain)
-- set up x86_64-linux binaries Github Actions test for WSLv1
-- minimize build sequence in Makefile as much as possible
-- test of WASM binaries using node.js, test preloading of data packages
-- preloaded minimal single-file, single-engine versions (both WASM and x86_64-linux) with just TexLive Basic and latex-base
-- explore creating virtual and LD_PRELOAD-based file systems: to avoid unpacking the ISO files or ZIP files (to be used even outside BusyTeX context); to embed Tex packages / Perl scripts in the native build 
-- figure out how to embed static perl with Perl scripts (fmtutil.pl, updmap.pl, https://perldoc.perl.org/perlembed#Using-embedded-Perl-with-POSIX-locales, https://www.cs.ait.ac.th/~on/O/oreilly/perl/advprog/ch19_02.htm, https://www.foo.be/docs/tpj/issues/vol1_4/tpj0104-0009.html, http://www.kaiyuanba.cn/content/develop/Perl/Extending_And_Embedding_Perl.pdf)
-- pre-parse ProvidesPackage meta for data packages
+For the general busytex roadmap and contribution ideas, see the upstream project:
+https://github.com/busytex/busytex
 
 ### Building from source
 
