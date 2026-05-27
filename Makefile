@@ -71,7 +71,11 @@ CPATH_BUSYTEX = texlive/libs/icu/include fontconfig
 ##############################################################################################################################
 
 #OBJ_LUAHBTEX = luatexdir/luahbtex-luatex.o luatexdir/luatex-luatex.o    mplibdir/luahbtex-lmplib.o mplibdir/luatex-lmplib.o    libluahbtexspecific.a libluatexspecific.a     libluaharfbuzz.a  busytex_libluahbtex.a busytex_libluatex.a   libff.a libluamisc.a libluasocket.a libluaffi.a libmplibcore.a libmputil.a libunilib.a libmd5.a lib/lib.a
-OBJ_LUAHBTEX  = luatexdir/luahbtex-luatex.o mplibdir/luahbtex-lmplib.o libluahbtexspecific.a libluaharfbuzz.a  busytex_libluahbtex.a libff.a libluamisc.a libluasocket.a libluaffi.a libmplibcore.a libmputil.a libunilib.a libmd5.a lib/lib.a
+# TL2026 split luaharfbuzz into two statically-registered Lua modules
+# (luastuff.c registers both luaopen_luaharfbuzz and luaopen_luaharfbuzzsubset).
+# libluaharfbuzzsubset.a must be built and linked too, or luahblatex aborts at
+# format-dump time with "missing function: luaopen_luaharfbuzzsubset".
+OBJ_LUAHBTEX  = luatexdir/luahbtex-luatex.o mplibdir/luahbtex-lmplib.o libluahbtexspecific.a libluaharfbuzz.a libluaharfbuzzsubset.a  busytex_libluahbtex.a libff.a libluamisc.a libluasocket.a libluaffi.a libmplibcore.a libmputil.a libunilib.a libmd5.a lib/lib.a
 OBJ_LUATEX    = luatexdir/luatex-luatex.o   mplibdir/luatex-lmplib.o  libluatexspecific.a                     busytex_libluatex.a libff.a libluamisc.a libluasocket.a libluaffi.a libmplibcore.a libmputil.a libunilib.a libmd5.a lib/lib.a 
 OBJ_PDFTEX    = synctexdir/pdftex-synctex.o pdftex-pdftexini.o pdftex-pdftex0.o pdftex-pdftex-pool.o pdftexdir/pdftex-pdftexextra.o lib/lib.a libmd5.a busytex_libpdftex.a
 OBJ_XETEX     = synctexdir/xetex-synctex.o xetex-xetexini.o xetex-xetex0.o xetex-xetex-pool.o xetexdir/xetex-xetexextra.o lib/lib.a libmd5.a busytex_libxetex.a
@@ -153,6 +157,18 @@ CXXFLAGS_TEXLIVE_native = $(CFLAGS_TEXLIVE_native) $(CXXFLAGS_native)
 # -fno-common 
 
 # https://www.openwall.com/lists/musl/2017/02/16/3
+#
+# -Wl,--allow-multiple-definition is required because busytex links several
+# web2c engines (pdftex, xetex, luahbtex) into ONE executable that dispatches by
+# argv[0]. The engines were generated independently and each emits its own copy
+# of the same web2c symbols, so the link sees these duplicates (TL2026 sources):
+#   `zisbitset`     — function, pdftex0.c vs xetex0.c
+#   `outputcanend`  — .bss, pdftex-pdftexextra.o vs xetex-xetexextra.o
+#   `savearitherror`— .bss, pdftex-pdftexextra.o vs xetex-xetexextra.o
+# The definitions are equivalent web2c-generated globals, so taking the first
+# (xetex's) is safe; the per-engine code paths never mix at runtime. A targeted
+# fix would require patching/renaming generated web2c output across engines,
+# which is not worth it. The flag stays until busytex stops single-binary linking.
 LDFLAGS_TEXLIVE_native = --static -static -static-libstdc++ -static-libgcc -ldl -lm -pthread -lpthread -lc    -Wl,--unresolved-symbols=ignore-all -Wl,--allow-multiple-definition
 
 # The WASM build can't assemble `.s` files when building pkgdata for obvious reasons.
@@ -425,7 +441,7 @@ build/%/texlive/texk/web2c/busytex_libpdftex.a: build/%/texlive.configured
 	$(call BUSYTEXIZE_A,$(dir $@),libpdftex.a)
 
 build/%/texlive/texk/web2c/busytex_libluahbtex.a: build/%/texlive.configured build/%/texlive/libs/zziplib/libzzip.a build/%/texlive/libs/lua53/.libs/libtexlua53.a
-	$(MAKE_$*) -C $(dir $@) luatexdir/luahbtex-luatex.o mplibdir/luahbtex-lmplib.o libluahbtexspecific.a libluaharfbuzz.a libmputil.a $(OPTS_LUAHBTEX_$*)
+	$(MAKE_$*) -C $(dir $@) luatexdir/luahbtex-luatex.o mplibdir/luahbtex-lmplib.o libluahbtexspecific.a libluaharfbuzz.a libluaharfbuzzsubset.a libmputil.a $(OPTS_LUAHBTEX_$*)
 	$(MAKE_$*) -C $(dir $@) libluatex.a $(OPTS_LUAHBTEX_$*)
 	$(call BUSYTEXIZE_A,$(dir $@),libluatex.a)
 	#echo AR1; $(AR_$*) t $@; echo NM1; $(NM_$*) $@
@@ -478,12 +494,28 @@ build/texlive-%.txt: source/texmfrepo.txt
 	cp $(BUSYTEX_native) $(basename $@)/$(BINARCH_native)
 	#
 	$(foreach name,texlive-scripts latexconfig tex-ini-files kpathsea texlive.infra,tar -xf source/texmfrepo/archive/$(name).r*.tar.xz -C $(basename $@); )
+	# Rewrite texmf.cnf for the WASM VFS. Two changes:
+	#  1. Repoint TEXMFSYSVAR/TEXMFSYSCONFIG under texmf-dist/ so they live inside
+	#     the single packaged tree (formats + config ship in one .data bundle).
+	#  2. Strip the `!!` prefixes (TEXMFDIST/SYSCONFIG/SYSVAR/LOCAL). In kpathsea
+	#     `!!` means "consult the ls-R database ONLY, never scan the directory".
+	#     The packaged WASM VFS has no ls-R index, so leaving `!!` would make
+	#     kpathsea find nothing; removing it lets kpathsea scan the VFS directly.
+	#     Trade-off: directory scanning instead of an index lookup, acceptable for
+	#     the small basic tree. Verify a compile still resolves packages/fonts.
 	sed -i 's|TEXMFSYSVAR = $$TEXMFROOT/texmf-var|TEXMFSYSVAR = $$TEXMFROOT/texmf-dist/texmf-var|;s|TEXMFSYSCONFIG = $$TEXMFROOT/texmf-config|TEXMFSYSCONFIG = $$TEXMFROOT/texmf-dist/texmf-config|;s|!!$$TEXMFDIST|$$TEXMFDIST|;s|!!$$TEXMFSYSCONFIG|$$TEXMFSYSCONFIG|;s|!!$$TEXMFSYSVAR|$$TEXMFSYSVAR|;s|!!$$TEXMFLOCAL|$$TEXMFLOCAL|' $(basename $@)/texmf-dist/web2c/texmf.cnf
 	$(foreach name,xetex luahbtex pdftex xelatex luahblatex pdflatex kpsewhich kpseaccess kpsestat kpsereadlink,printf "#!/bin/sh\n$(ROOT)/$(basename $@)/$(BINARCH_native)/busytex $(name)   $$"@ > $(basename $@)/$(BINARCH_native)/$(name) ; chmod +x $(basename $@)/$(BINARCH_native)/$(name); )
 	$(foreach name,mktexlsr.pl updmap-sys.sh updmap.pl fmtutil-sys.sh fmtutil.pl,cp $(basename $@)/texmf-dist/scripts/texlive/$(name) $(basename $@)/$(BINARCH_native)/$(basename $(name)); )
 	#mkdir -p $(ROOT)/source/texmfrepotmp; export TMPDIR=$(ROOT)/source/texmfrepotmp 
+	# install-tl is run tolerantly (leading -) because its post-install steps
+	# (mktexlsr / fmtutil) exit non-zero under the busytex wrapper bin and we
+	# regenerate formats ourselves later. But a real install failure must not be
+	# swallowed, so assert the tree was actually populated below.
 	-TEXLIVE_INSTALL_NO_RESUME=1 $(PERL) source/texmfrepo/install-tl --repository source/texmfrepo --profile build/texlive-$*.profile --custom-bin $(ROOT)/$(basename $@)/$(BINARCH_native) --no-doc-install --no-src-install # strace -f -s 128
-	# 
+	# Post-condition: install-tl must have populated the package tree. Without
+	# this an incomplete/failed install would silently proceed to packaging.
+	test -d $(basename $@)/texmf-dist/tex/latex/base || { echo "FATAL: install-tl produced no packages (texmf-dist/tex/latex/base missing)"; exit 1; }
+	#
 	##printf "#!/bin/sh\n$(ROOT)/$(basename $@)/$(BINARCH_native)/busytex lualatex   $$"@ > $(basename $@)/$(BINARCH_native)/luahbtex
 	echo '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><dir>/texlive/texmf-dist/fonts/opentype</dir><dir>/texlive/texmf-dist/fonts/type1</dir></fontconfig>' > $(basename $@)/fonts.conf
 	-mv $(basename $@)/texmf-dist/texmf-var/web2c/luahbtex/lualatex.fmt $(basename $@)/texmf-dist/texmf-var/web2c/luahbtex/luahblatex.fmt
