@@ -1,0 +1,118 @@
+{
+  "formatVersion": "2026-06-01",
+  "sourceDateEpoch": 1780617600,
+  "snapshot": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/",
+  "indexSha256": "5b59f7454a4c9752b3e506ff25034fd4110111e1315b9937a9792c8b8d5cd4c6",
+  "packages": {
+    "amsmath": {
+      "revision": "79234",
+      "containersize": "31724",
+      "containerchecksum": "5d6768eea6404bcde83f6fdd7025f6f63dfafc633c689a308f1465ffbeb74385daddc4cd2cf4eb6f0152e8a2c9f8ee1cdc94aa8ad796051155a299d355503c4c",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/amsmath.r79234.tar.xz"
+    },
+    "bookmark": {
+      "revision": "79129",
+      "containersize": "8384",
+      "containerchecksum": "573b12ce9d11d9ba3ca3c4cdc0ff7e808f4e08193b85b8ff24443062c15a7da51c2d08ebfff264a8084f8bbcb6f13575f9aa71b53ef78b282c9b78b5447016e6",
+      "catalogue-version": "1.32",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/bookmark.r79129.tar.xz"
+    },
+    "graphics": {
+      "revision": "79234",
+      "containersize": "16040",
+      "containerchecksum": "1fce8c76d1cc65eb416c1b40bb8b872ec886384c1a42c02110756ff08d4c5909a3675cf1098499aa9e743eb2f4df18c6487bc0849208bf3ef9efc17dd27cb7ae",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/graphics.r79234.tar.xz"
+    },
+    "hyperref": {
+      "revision": "78811",
+      "containersize": "89008",
+      "containerchecksum": "6c3c5ab189f77b49cc240fa54836399f694524632c5100cdfeee8e76cbb3da73385ce9a9c52c9b4032cf57d6e075dce05ec10124f3d502b7d8608f0cc519e458",
+      "catalogue-version": "7.01q",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/hyperref.r78811.tar.xz"
+    },
+    "l3backend": {
+      "revision": "78544",
+      "containersize": "16532",
+      "containerchecksum": "333937499e648b3f704ec43aad49415e4a4ea75346aa7d638eef116df85416c7b174aa3de6abdca7208af9cb721a5e1180bc36417429af4ce12ef1fe696794a6",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/l3backend.r78544.tar.xz"
+    },
+    "l3kernel": {
+      "revision": "79203",
+      "containersize": "191276",
+      "containerchecksum": "82b6fd873c3878fc39d08789d94323cdd086e5e15f2312a9cfb93f201760efeaff2d640f0202f767782faf501d79dcd8b45a45db096ea4cd912e367d62fed1b8",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/l3kernel.r79203.tar.xz"
+    },
+    "latex": {
+      "revision": "79234",
+      "containersize": "264340",
+      "containerchecksum": "f8fbf2e1ce1d3f403956cbb3da0accc6c1865ad7e4b9c800de89374deea0f97649f0744f68d3206648afc920f5be3f639aab0212c9c7c6d3c2338a09e57c0fbd",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/latex.r79234.tar.xz"
+    },
+    "latex-lab": {
+      "revision": "79234",
+      "containersize": "64204",
+      "containerchecksum": "d3055b183a188ea8ef83be209614dbf7d7da2bb684d54c13e45b7a1db53869416e892ba6acb111e63fcd0d02ca27415219755b2ef4a6a2c4dcb3811374b6a3e1",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/latex-lab.r79234.tar.xz"
+    },
+    "luamml": {
+      "revision": "78219",
+      "containersize": "23744",
+      "containerchecksum": "8fa7037f2fa7457012aa42ab185f557431db40da6a76fdc631fd3d1a9caa4616125cc7d16416c8f76e419489b5fbc1faf3d28940de5aa149557f2707e51b1abb",
+      "catalogue-version": "0.8.0",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/luamml.r78219.tar.xz"
+    },
+    "pdfmanagement": {
+      "revision": "79164",
+      "containersize": "63744",
+      "containerchecksum": "2da64328db12c33d8c35062307034fa5da6cfb23a25ed4f047e56cfb9d4d4f6cd10aa057115d3fd20ec366293ef824cdfc3e1f991a56f0cdce8cb874e63fe041",
+      "catalogue-version": "0.97c",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/pdfmanagement.r79164.tar.xz"
+    },
+    "tagpdf": {
+      "revision": "79038",
+      "containersize": "43316",
+      "containerchecksum": "99e7aab6e8ad80abceec0fa0ec5e278e6d88c2401146bbcd9d998ea7754075b3ec913bfa971d764c528977ec05276baf7b238025977a27ed46791a3d7a64e88e",
+      "catalogue-version": "1.0c",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/tagpdf.r79038.tar.xz"
+    },
+    "tools": {
+      "revision": "79234",
+      "containersize": "48836",
+      "containerchecksum": "9bcf59a34fda40574fedd88583787937d33601fc1f505f12ec30e6ddb2095a5d5c52dd431e6ca354fedcd09cd1311acaed35ea858b429ba631cef7e58262d221",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/tools.r79234.tar.xz"
+    },
+    "firstaid": {
+      "revision": "79234",
+      "containersize": "4964",
+      "containerchecksum": "64baa443979a09b6c5eb7a27c53ed040cd04f146edb2af7f037d9d4ef7d98eb637cbc85f59eaac149bb5f1d2cc4bbf9426f47c93add55f6aa41a104e669c8af8",
+      "url": "https://texlive.info/tlnet-archive/2026/06/05/tlnet/archive/firstaid.r79234.tar.xz"
+    }
+  },
+  "retiredFiles": [
+    "tex/latex/bookmark/bkm-dvipdfm.def",
+    "tex/latex/latex-lab/bib-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/block-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/context-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/firstaid-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/float-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/glyphtounicode-cmex.tex",
+    "tex/latex/latex-lab/graphic-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/latex-lab-testphase-new-or-1.sty",
+    "tex/latex/latex-lab/marginpar-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/math-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/minipage-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/new-or-1-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/new-or-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/phase-I-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/phase-II-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/phase-III-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/sec-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/table-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/tabular-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/tagpdf-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/text-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/tikz-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/title-latex-lab-testphase.ltx",
+    "tex/latex/latex-lab/toc-latex-lab-testphase.ltx"
+  ]
+}

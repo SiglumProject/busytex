@@ -3,9 +3,10 @@
 # https://www.tug.org/texlive//devsrc/Master/texmf-dist/tex/latex/
 
 # TL2026 URLs
-URL_texlive_full_iso = https://mirror.ctan.org/systems/texlive/Images/texlive2026-20260301.iso
-URL_texlive_full_iso_cache = https://mirror.ctan.org/systems/texlive/Images/texlive2026-20260301.iso
-URL_texlive          = https://github.com/TeX-Live/texlive-source/archive/refs/heads/tags/texlive-2026.0.tar.gz
+URL_texlive_full_iso = https://tug.ctan.org/systems/texlive/Images/texlive2026-20260301.iso
+URL_texlive_full_iso_cache = $(URL_texlive_full_iso)
+SHA512_texlive_full_iso = 4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff
+URL_texlive          = https://github.com/TeX-Live/texlive-source/archive/f26cc5ed05a1f784d1e694fe5b9cfc3ce992c03d.tar.gz
 # Old TL2025 URLs (commented out)
 #URL_texlive_full_iso = https://mirror.ctan.org/systems/texlive/Images/texlive2025.iso
 #URL_texlive          = https://github.com/TeX-Live/texlive-source/archive/refs/heads/tags/texlive-2025.0.tar.gz
@@ -42,7 +43,7 @@ BINARCH_native =bin/_custom
 
 PYTHON        = python3
 PERL          = perl
-MAKE_wasm     = emmake $(MAKE)
+MAKE_wasm     = $(PYTHON) "$(ROOT)/emmake-jobserver.py" $(MAKE)
 CMAKE_wasm    = emcmake cmake
 CONFIGURE_wasm= $(EMROOT)/emconfigure
 AR_wasm       = emar
@@ -240,8 +241,7 @@ source/texlive.txt source/expat.txt source/fontconfig.txt:
 	find $(basename $@) > $@
 
 source/texmfrepo.txt:
-	mkdir -p $(basename $@)
-	curl -L $(URL_texlive_full_iso_cache) | bsdtar -x -C $(basename $@)
+	$(PYTHON) extract-texlive-iso.py "$(URL_texlive_full_iso_cache)" "$(SHA512_texlive_full_iso)" $(basename $@)
 	find $(basename $@) > $@
 
 source/texlive.patched: source/texlive.txt
@@ -293,20 +293,20 @@ build/%/texlive.configured: source/texlive.patched
 	  CXXFLAGS="$(CXXFLAGS_TEXLIVE_$*)"                 \
 	LDFLAGS="$(LDFLAGS_TEXLIVE_$*)"                     \
           ac_cv_func_getwd=no ax_cv_c_float_words_bigendian=no ac_cv_namespace_ok=yes
-	$(MAKE_$*) -C $(basename $@)
+	+$(MAKE_$*) -C $(basename $@)
 	touch $@	        
 
 build/%/texlive/libs/teckit/libTECkit.a build/%/texlive/libs/harfbuzz/libharfbuzz.a build/%/texlive/libs/graphite2/libgraphite2.a build/%/texlive/libs/libpng/libpng.a build/%/texlive/libs/libpaper/libpaper.a build/%/texlive/libs/zlib/libz.a build/%/texlive/libs/pplib/libpplib.a build/%/texlive/libs/xpdf/libxpdf.a build/%/texlive/libs/zziplib/libzzip.a build/%/texlive/texk/web2c/lib/lib.a: build/%/texlive.configured
-	$(MAKE_$*) -C $(dir $@) $(OPTS_$(notdir $(basename $@))_$*) $(OPTS_LIBS_$*)
+	+$(MAKE_$*) -C $(dir $@) $(OPTS_$(notdir $(basename $@))_$*) $(OPTS_LIBS_$*)
 
 build/%/texlive/libs/freetype2/libfreetype.a: build/%/texlive.configured
 	mkdir -p build/native/texlive/libs/freetype2/ft-build
 	$(CC_native) source/texlive/libs/freetype2/freetype-src/src/tools/apinames.c -o build/native/texlive/libs/freetype2/ft-build/apinames
-	$(MAKE_$*) -C $(dir $@) $(OPTS_$(notdir $(basename $@))_$*) $(OPTS_LIBS_$*)
+	+$(MAKE_$*) -C $(dir $@) $(OPTS_$(notdir $(basename $@))_$*) $(OPTS_LIBS_$*)
 
 
 build/%/texlive/libs/lua53/.libs/libtexlua53.a build/%/texlive/texk/kpathsea/.libs/libkpathsea.a: build/%/texlive.configured
-	$(MAKE_$*) -C $(dir $(abspath $(dir $@)))
+	+$(MAKE_$*) -C $(dir $(abspath $(dir $@)))
 
 build/%/expat/libexpat.a: source/expat.txt
 	mkdir -p $(dir $@) && cd $(dir $@) &&        \
@@ -320,7 +320,7 @@ build/%/expat/libexpat.a: source/expat.txt
 	   -DEXPAT_BUILD_TESTS=off                   \
 	   -DEXPAT_BUILD_TOOLS=off                   \
 	   $(abspath $(basename $<)) 
-	$(MAKE_$*) -C $(dir $@)
+	+$(MAKE_$*) -C $(dir $@)
 
 build/%/fontconfig/src/.libs/libfontconfig.a: source/fontconfig.txt build/%/expat/libexpat.a build/%/texlive/libs/freetype2/libfreetype.a
 	echo > $(CACHE_FONTCONFIG_$*)
@@ -338,46 +338,46 @@ build/%/fontconfig/src/.libs/libfontconfig.a: source/fontconfig.txt build/%/expa
 	   --with-expat-includes="$(abspath source/expat/lib)" \
 	   --with-expat-lib="$(abspath build/$*/expat)"        \
 	   CFLAGS="$(CFLAGS_OPT_$*) $(CFLAGS_FONTCONFIG_$*) -v" FREETYPE_CFLAGS="$(addprefix -I$(ROOT)/build/$*/texlive/libs/, freetype2/ freetype2/freetype2/)" FREETYPE_LIBS="-L$(ROOT)/build/$*/texlive/libs/freetype2/ -lfreetype"
-	$(MAKE_$*) -C build/$*/fontconfig
+	+$(MAKE_$*) -C build/$*/fontconfig
 
 build/%/texlive/texk/makeindexk/busytex_makeindex.a: build/%/texlive.configured
-	$(MAKE_$*) -C $(dir $@) genind.o mkind.o qsort.o scanid.o scanst.o sortid.o $(OPTS_MAKEINDEX_$*)
+	+$(MAKE_$*) -C $(dir $@) genind.o mkind.o qsort.o scanid.o scanst.o sortid.o $(OPTS_MAKEINDEX_$*)
 	$(AR_$*) -crs $@ $(dir $@)/*.o
 
 build/%/texlive/texk/kpathsea/busytex_kpsewhich.o: build/%/texlive.configured
 	-rm build/$*/texlive/texk/kpathsea/kpsewhich.o 
-	$(MAKE_$*) -C $(dir $@) kpsewhich.o $(OPTS_KPSEWHICH_$*)
+	+$(MAKE_$*) -C $(dir $@) kpsewhich.o $(OPTS_KPSEWHICH_$*)
 	cp $(dir $@)/kpsewhich.o $@
 	$(call BUSYTEXIZE_O,$(dir $@),kpsewhich.o)
 
 build/%/texlive/texk/kpathsea/busytex_kpsestat.o: build/%/texlive.configured
 	-rm build/$*/texlive/texk/kpathsea/kpsestat.o 
-	$(MAKE_$*) -C $(dir $@) kpsestat.o $(OPTS_KPSESTAT_$*)
+	+$(MAKE_$*) -C $(dir $@) kpsestat.o $(OPTS_KPSESTAT_$*)
 	cp $(dir $@)/kpsestat.o $@
 	$(call BUSYTEXIZE_O,$(dir $@),kpsestat.o)
 
 build/%/texlive/texk/kpathsea/busytex_kpseaccess.o: build/%/texlive.configured
 	-rm build/$*/texlive/texk/kpathsea/access.o 
-	$(MAKE_$*) -C $(dir $@) access.o $(OPTS_KPSEACCESS_$*)
+	+$(MAKE_$*) -C $(dir $@) access.o $(OPTS_KPSEACCESS_$*)
 	cp $(dir $@)/access.o $@
 	$(call BUSYTEXIZE_O,$(dir $@),access.o)
 
 build/%/texlive/texk/kpathsea/busytex_kpsereadlink.o: build/%/texlive.configured
 	-rm build/$*/texlive/texk/kpathsea/readlink.o 
-	$(MAKE_$*) -C $(dir $@) readlink.o $(OPTS_KPSEREADLINK_$*)
+	+$(MAKE_$*) -C $(dir $@) readlink.o $(OPTS_KPSEREADLINK_$*)
 	cp $(dir $@)/readlink.o $@
 	$(call BUSYTEXIZE_O,$(dir $@),readlink.o)
 
 build/%/texlive/texk/dvipdfm-x/busytex_xdvipdfmx.a: build/%/texlive.configured
-	$(MAKE_$*) -C $(dir $@) $(subst -Dmain=, -Dbusymain=, $(OPTS_XDVIPDFMX_$*))
+	+$(MAKE_$*) -C $(dir $@) $(subst -Dmain=, -Dbusymain=, $(OPTS_XDVIPDFMX_$*))
 	rm $(dir $@)/dvipdfmx.o
-	$(MAKE_$*) -C $(dir $@) dvipdfmx.o $(OPTS_XDVIPDFMX_$*)
+	+$(MAKE_$*) -C $(dir $@) dvipdfmx.o $(OPTS_XDVIPDFMX_$*)
 	$(AR_$*) -crs $@ $(dir $@)/*.o
 
 build/%/texlive/texk/bibtex-x/busytex_bibtex8.a: build/%/texlive.configured
-	$(MAKE_$*) -C $(dir $@) $(subst -Dmain=, -Dbusymain=, $(OPTS_BIBTEX_$*))
+	+$(MAKE_$*) -C $(dir $@) $(subst -Dmain=, -Dbusymain=, $(OPTS_BIBTEX_$*))
 	rm $(dir $@)/bibtex8-bibtex.o
-	$(MAKE_$*) -C $(dir $@) bibtex8-bibtex.o $(OPTS_BIBTEX_$*)
+	+$(MAKE_$*) -C $(dir $@) bibtex8-bibtex.o $(OPTS_BIBTEX_$*)
 	$(AR_$*) -crs $@ $(dir $@)/bibtex8-*.o
 
 build/%/busytex build/%/busytex.js:
@@ -413,19 +413,19 @@ build/native/busytexextra: build/native/busytex                              bui
 build/%/texlive/libs/icu/icu-build/lib/libicuuc.a build/%/texlive/libs/icu/icu-build/lib/libicudata.a: build/%/texlive.configured
 	# WASM build depends on build/native/texlive/libs/icu/icu-build/bin/icupkg build/native/texlive/libs/icu/icu-build/bin/pkgdata
 	cd                    build/$*/texlive/libs/icu && $(CONFIGURE_$*) $(abspath source/texlive/libs/icu/configure) $(OPTS_ICU_configure_$*)
-	$(MAKE_$*)         -C build/$*/texlive/libs/icu $(OPTS_ICU_configure_make_$*)
+	+$(MAKE_$*)         -C build/$*/texlive/libs/icu $(OPTS_ICU_configure_make_$*)
 	echo "all install:" > build/$*/texlive/libs/icu/icu-build/test/Makefile
-	$(MAKE_$*)         -C build/$*/texlive/libs/icu/icu-build $(OPTS_ICU_make_$*) 
-	$(MAKE_$*)         -C build/$*/texlive/libs/icu/include/unicode
+	+$(MAKE_$*)         -C build/$*/texlive/libs/icu/icu-build $(OPTS_ICU_make_$*)
+	+$(MAKE_$*)         -C build/$*/texlive/libs/icu/include/unicode
 
 build/%/texlive/texk/web2c/busytex_libxetex.a: build/%/texlive.configured
 	# copying generated C files from native version, since string offsets are off
 	mkdir -p $(dir $@)
 	# xetexini.c, xetex0.c xetex-pool.c
 	-cp $(subst wasm,native,$(dir $@))*.c $(dir $@)
-	$(MAKE_$*) -C $(dir $@) synctexdir/xetex-synctex.o      xetex-xetexini.o xetex-xetex0.o xetex-xetex-pool.o  $(subst -Dmain=, -Dbusymain=, $(OPTS_XETEX_$*))
-	$(MAKE_$*) -C $(dir $@) xetexdir/xetex-xetexextra.o     $(OPTS_XETEX_$*)
-	$(MAKE_$*) -C $(dir $@) libxetex.a                      $(OPTS_XETEX_$*)
+	+$(MAKE_$*) -C $(dir $@) synctexdir/xetex-synctex.o      xetex-xetexini.o xetex-xetex0.o xetex-xetex-pool.o  $(subst -Dmain=, -Dbusymain=, $(OPTS_XETEX_$*))
+	+$(MAKE_$*) -C $(dir $@) xetexdir/xetex-xetexextra.o     $(OPTS_XETEX_$*)
+	+$(MAKE_$*) -C $(dir $@) libxetex.a                      $(OPTS_XETEX_$*)
 	mv $(dir $@)/libxetex.a $@
 	$(call BUSYTEXIZE_A,$(dir $@),libxetex.a)
 
@@ -434,15 +434,15 @@ build/%/texlive/texk/web2c/busytex_libpdftex.a: build/%/texlive.configured
 	mkdir -p $(dir $@)
 	# pdftexini.c, pdftex0.c pdftex-pool.c
 	-cp $(subst wasm,native,$(dir $@))*.c $(dir $@)
-	$(MAKE_$*) -C $(dir $@) pdftexd.h synctexdir/pdftex-synctex.o pdftex-pdftexini.o pdftex-pdftex0.o pdftex-pdftex-pool.o $(subst -Dmain=, -Dbusymain=, $(OPTS_PDFTEX_$*))
+	+$(MAKE_$*) -C $(dir $@) pdftexd.h synctexdir/pdftex-synctex.o pdftex-pdftexini.o pdftex-pdftex0.o pdftex-pdftex-pool.o $(subst -Dmain=, -Dbusymain=, $(OPTS_PDFTEX_$*))
 	$(EXTERN_SYM)     $(dir $@)/pdftexd.h                   $(PDFTEX_EXTERN)
-	$(MAKE_$*) -C $(dir $@) pdftexdir/pdftex-pdftexextra.o  $(OPTS_PDFTEX_$*)
-	$(MAKE_$*) -C $(dir $@) libpdftex.a                     $(OPTS_PDFTEX_$*)
+	+$(MAKE_$*) -C $(dir $@) pdftexdir/pdftex-pdftexextra.o  $(OPTS_PDFTEX_$*)
+	+$(MAKE_$*) -C $(dir $@) libpdftex.a                     $(OPTS_PDFTEX_$*)
 	$(call BUSYTEXIZE_A,$(dir $@),libpdftex.a)
 
 build/%/texlive/texk/web2c/busytex_libluahbtex.a: build/%/texlive.configured build/%/texlive/libs/zziplib/libzzip.a build/%/texlive/libs/lua53/.libs/libtexlua53.a
-	$(MAKE_$*) -C $(dir $@) luatexdir/luahbtex-luatex.o mplibdir/luahbtex-lmplib.o libluahbtexspecific.a libluaharfbuzz.a libluaharfbuzzsubset.a libmputil.a $(OPTS_LUAHBTEX_$*)
-	$(MAKE_$*) -C $(dir $@) libluatex.a $(OPTS_LUAHBTEX_$*)
+	+$(MAKE_$*) -C $(dir $@) luatexdir/luahbtex-luatex.o mplibdir/luahbtex-lmplib.o libluahbtexspecific.a libluaharfbuzz.a libluaharfbuzzsubset.a libmputil.a $(OPTS_LUAHBTEX_$*)
+	+$(MAKE_$*) -C $(dir $@) libluatex.a $(OPTS_LUAHBTEX_$*)
 	$(call BUSYTEXIZE_A,$(dir $@),libluatex.a)
 	#echo AR1; $(AR_$*) t $@; echo NM1; $(NM_$*) $@
 	#$(MAKE_$*) -C $(dir $@) luatexdir/luatex-luatex.o mplibdir/luatex-lmplib.o libluatexspecific.a $(OPTS_LUATEX_$*)
@@ -527,6 +527,14 @@ build/texlive-%.txt: source/texmfrepo.txt
 	tar -czf $(basename $@).tar.gz $(basename $@)
 
 ################################################################################################################
+
+.PHONY: verify-basic-formats
+verify-basic-formats:
+	@test -s build/texlive-basic-formats.sha256 || { echo "Run bash regen-formats.sh before packaging the basic tree." >&2; exit 1; }
+	sha256sum -c build/texlive-basic-formats.sha256
+
+# A phony prerequisite also repackages after format or package changes deep inside the tree.
+build/wasm/texlive-basic.js: verify-basic-formats
 
 build/wasm/texlive-%.js: build/texlive-%/texmf-dist 
 	mkdir -p $(dir $@)

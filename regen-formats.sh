@@ -1,6 +1,5 @@
 #!/bin/bash
-# Regenerate format files using the WASM binary via Node.js.
-# This ensures format files match the WASM engine's string pool.
+# Apply the locked LaTeX package overlay and generate matching WASM formats.
 #
 # Run inside the emscripten container after install-tl has installed packages:
 #   podman run --rm -v "$(pwd):/work" -w /work emscripten/emsdk:3.1.43 bash regen-formats.sh
@@ -10,6 +9,19 @@ set -e
 TEXLIVE_DIR="build/texlive-basic"
 WASM_DIR="build/wasm"
 FMT_DIR="${TEXLIVE_DIR}/texmf-dist/texmf-var/web2c"
+LOCK_FILE="texlive-packages.lock.json"
+CHECKSUMS="build/texlive-basic-formats.sha256"
+formats=(pdftex/pdflatex.fmt xetex/xelatex.fmt luahbtex/luahblatex.fmt)
+
+test -s "${WASM_DIR}/busytex.wasm"
+test -s "${WASM_DIR}/busytex.js"
+settings=$(python3 -c 'import json, sys; lock = json.load(open(sys.argv[1])); print(lock["sourceDateEpoch"], lock["formatVersion"])' "$LOCK_FILE")
+read -r SOURCE_DATE_EPOCH LATEX_FORMAT_VERSION <<< "$settings"
+export SOURCE_DATE_EPOCH LATEX_FORMAT_VERSION TZ=UTC
+
+# Keep the packaging guard invalid if overlay or generation fails.
+rm -f "$CHECKSUMS"
+python3 apply-texlive-overlay.py "${TEXLIVE_DIR}/texmf-dist"
 
 echo "=== Regenerating format files with WASM binary ==="
 echo "Node version: $(node --version)"
@@ -18,11 +30,13 @@ echo "Node version: $(node --version)"
 # format has been produced. This prevents a failed regen from leaving FMT_DIR
 # with zero (or stale/native) .fmt files while the build still reports success
 # — which would surface at runtime as "could not undump format".
-FMT_TMP="$(mktemp -d)"
+FMT_TMP="$(mktemp -d "${PWD}/build/.busytex-formats.XXXXXX")"
 trap 'rm -rf "$FMT_TMP"' EXIT
 
 # Create a Node.js script (CommonJS, no top-level await)
-cat > /tmp/gen-format.js << 'SCRIPT'
+# The superproject declares type=module; preserve the glue's CommonJS mode.
+cp "${WASM_DIR}/busytex.js" "${FMT_TMP}/busytex.cjs"
+cat > "${FMT_TMP}/gen-format.cjs" << 'SCRIPT'
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -34,9 +48,9 @@ const wasmDir = args[2];
 const fmtOutputDir = args[3];
 
 const engineMap = {
-  'pdflatex':   { program: 'pdflatex',  iniArgs: ['-ini', '-jobname=pdflatex', '*pdflatex.ini'] },
-  'xelatex':    { program: 'xelatex',   iniArgs: ['-ini', '-jobname=xelatex', '*xelatex.ini'] },
-  'luahblatex': { program: 'luahblatex', iniArgs: ['-ini', '-jobname=lualatex', '*lualatex.ini'] },
+  'pdflatex':   { program: 'pdflatex',  iniArgs: ['-ini', '-halt-on-error', '-interaction=nonstopmode', '-jobname=pdflatex', '*pdflatex.ini'] },
+  'xelatex':    { program: 'xelatex',   iniArgs: ['-ini', '-halt-on-error', '-interaction=nonstopmode', '-jobname=xelatex', '*xelatex.ini'] },
+  'luahblatex': { program: 'luahblatex', iniArgs: ['-ini', '-halt-on-error', '-interaction=nonstopmode', '-jobname=lualatex', '*lualatex.ini'] },
 };
 
 const config = engineMap[engine];
@@ -70,8 +84,14 @@ async function main() {
   var texmfFiles = collectFiles(path.join(texliveDir, 'texmf-dist'), '/texlive/texmf-dist');
   console.log('Collected ' + Object.keys(texmfFiles).length + ' files');
 
-  var busytexFactory = require(path.join(process.cwd(), wasmDir, 'busytex.js'));
+  // Pin Emscripten's wall clock for format generation, including Lua's hash seed.
+  const epochSeconds = Number(process.env.SOURCE_DATE_EPOCH);
+  if (!Number.isSafeInteger(epochSeconds) || epochSeconds <= 0) throw new Error('Expected SOURCE_DATE_EPOCH');
+  Date.now = () => epochSeconds * 1000;
+  var busytexFactory = require('./busytex.cjs');
 
+  const expectedBanner = 'LaTeX2e <' + process.env.LATEX_FORMAT_VERSION + '>';
+  let foundVersion = false;
   var Module = await busytexFactory({
     wasmBinary: wasmBinary,
     noInitialRun: true,
@@ -89,19 +109,27 @@ async function main() {
         mod.FS.writeFile(p, texmfFiles[p]);
       }
       mod.ENV['TEXMFCNF'] = '/texlive/texmf-dist/web2c';
+      mod.ENV['TZ'] = 'UTC';
+      mod.ENV['SOURCE_DATE_EPOCH'] = process.env.SOURCE_DATE_EPOCH;
+      mod.ENV['FORCE_SOURCE_DATE'] = '1';
     }],
-    print: function(text) { console.log('[TeX] ' + text); },
+    print: function(text) {
+      if (text.startsWith(expectedBanner)) foundVersion = true;
+      console.log('[TeX] ' + text);
+    },
     printErr: function(text) { console.error('[TeX ERR] ' + text); }
   });
 
   await Module.ready;
 
   try {
-    Module.callMain([config.program].concat(config.iniArgs));
+    const status = Module.callMain([config.program].concat(config.iniArgs));
+    if (status !== 0) throw new Error('Engine exited with status ' + status);
   } catch (e) {
-    console.log('Engine exited: ' + e.message);
+    if (e.name !== 'ExitStatus' || e.status !== 0) throw e;
   }
 
+  if (!foundVersion) throw new Error('Expected ' + expectedBanner + ' from ' + engine);
   var fmtName = (engine === 'luahblatex' ? 'lualatex' : engine) + '.fmt';
   try {
     var fmtData = Module.FS.readFile(fmtName);
@@ -127,13 +155,13 @@ for engine in pdflatex xelatex; do
   subdir=$(echo $engine | sed 's/pdflatex/pdftex/;s/xelatex/xetex/')
   mkdir -p "${FMT_TMP}/${subdir}"
   echo "--- Generating ${engine}.fmt ---"
-  node /tmp/gen-format.js "$engine" "$TEXLIVE_DIR" "$WASM_DIR" "${FMT_TMP}/${subdir}"
+  node "${FMT_TMP}/gen-format.cjs" "$engine" "$TEXLIVE_DIR" "$WASM_DIR" "${FMT_TMP}/${subdir}"
 done
 
 # Handle luahblatex separately (renamed from lualatex)
 mkdir -p "${FMT_TMP}/luahbtex"
 echo "--- Generating lualatex.fmt (for luahblatex) ---"
-node /tmp/gen-format.js "luahblatex" "$TEXLIVE_DIR" "$WASM_DIR" "${FMT_TMP}/luahbtex"
+node "${FMT_TMP}/gen-format.cjs" "luahblatex" "$TEXLIVE_DIR" "$WASM_DIR" "${FMT_TMP}/luahbtex"
 
 # Rename lualatex.fmt to luahblatex.fmt
 mv "${FMT_TMP}/luahbtex/lualatex.fmt" "${FMT_TMP}/luahbtex/luahblatex.fmt"
@@ -141,7 +169,7 @@ mv "${FMT_TMP}/luahbtex/lualatex.fmt" "${FMT_TMP}/luahbtex/luahblatex.fmt"
 # Assert every expected format was produced and is non-empty before swapping in.
 echo ""
 echo "=== Verifying generated formats ==="
-for f in pdftex/pdflatex.fmt xetex/xelatex.fmt luahbtex/luahblatex.fmt; do
+for f in "${formats[@]}"; do
   if [ ! -s "${FMT_TMP}/$f" ]; then
     echo "FATAL: missing or empty format $f — refusing to swap in incomplete formats"
     exit 1
@@ -149,7 +177,7 @@ for f in pdftex/pdflatex.fmt xetex/xelatex.fmt luahbtex/luahblatex.fmt; do
   echo "  ok: $f ($(wc -c < "${FMT_TMP}/$f") bytes)"
 done
 
-# All required formats present — swap into place atomically per subdir.
+# All required formats are ready. Replace the install-time formats and record their inputs.
 echo "=== Installing format files into ${FMT_DIR} ==="
 for subdir in pdftex xetex luahbtex; do
   mkdir -p "${FMT_DIR}/${subdir}"
@@ -157,7 +185,11 @@ for subdir in pdftex xetex luahbtex; do
   mv "${FMT_TMP}/${subdir}"/*.fmt "${FMT_DIR}/${subdir}/"
 done
 
+sha256sum "$LOCK_FILE" "${WASM_DIR}/busytex.wasm" "${WASM_DIR}/busytex.js" \
+  "${formats[@]/#/$FMT_DIR/}" > "${FMT_TMP}/formats.sha256"
+mv "${FMT_TMP}/formats.sha256" "$CHECKSUMS"
+
 echo ""
-echo "=== Format files ==="
-ls -la ${FMT_DIR}/*/*.fmt
+echo "=== Format checksums ==="
+cat "$CHECKSUMS"
 echo "=== Done ==="
