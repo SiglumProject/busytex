@@ -1,0 +1,54 @@
+name: Test BusyTeX build scripts
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  overlay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check build script syntax
+        shell: bash
+        run: |
+          bash -n build-wasm.sh
+          bash -n regen-formats.sh
+          python3 -m py_compile apply-texlive-overlay.py emmake-jobserver.py extract-texlive-iso.py
+
+      - name: Apply the locked TeX Live overlay
+        shell: bash
+        run: |
+          scratch=$(mktemp -d)
+          trap 'rm -rf "$scratch"' EXIT
+          export BUSYTEX_TEXLIVE_ARCHIVES="$scratch/archives"
+          tree="$scratch/texmf-dist"
+          pristine="$scratch/pristine"
+          rejected="$scratch/rejected"
+
+          mkdir -p "$tree/web2c"
+          touch "$tree/web2c/texmf.cnf"
+          cp -R "$tree" "$pristine"
+          cp -R "$pristine" "$rejected"
+
+          python3 apply-texlive-overlay.py "$tree"
+          version=$(python3 -c 'import json; print(json.load(open("texlive-packages.lock.json"))["formatVersion"])')
+          grep -Fq "{$version}" "$tree/tex/latex/base/latex.ltx"
+          grep -Fxq latex.ltx "$tree/ls-R"
+
+          archives=("$BUSYTEX_TEXLIVE_ARCHIVES"/latex.r*.tar.xz)
+          test "${#archives[@]}" -eq 1
+          # Replace one byte so the archive still has its original size.
+          printf '\0' | dd of="${archives[0]}" bs=1 count=1 conv=notrunc 2>/dev/null
+          if python3 apply-texlive-overlay.py "$rejected" >"$scratch/rejection.log" 2>&1; then
+            echo "The overlay accepted a corrupted archive" >&2
+            exit 1
+          fi
+          grep -F "SHA-512 mismatch for" "$scratch/rejection.log"
+          diff -r "$pristine" "$rejected"

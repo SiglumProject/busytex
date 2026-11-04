@@ -4,8 +4,8 @@
 from hashlib import sha512
 from io import BytesIO
 from pathlib import Path, PurePosixPath
+from subprocess import PIPE, Popen
 from tempfile import NamedTemporaryFile
-from urllib.request import urlopen
 import json
 import os
 import sys
@@ -32,8 +32,16 @@ def read_package(cache, name, pin):
     if cached:
         contents = path.read_bytes()
     else:
-        with urlopen(pin['url'], timeout=30) as response:
-            contents = response.read(size + 1)
+        # The TeX Live archive serves its package files to curl.
+        with Popen([
+            'curl', '--fail', '--silent', '--show-error', '--location',
+            '--max-time', '30', '--', pin['url'],
+        ], stdout=PIPE) as download:
+            contents = download.stdout.read(size + 1)
+            if len(contents) > size:
+                download.terminate()
+            elif download.wait():
+                raise ValueError(f"download failed for {path.name}")
     if len(contents) != size or sha512(contents).hexdigest() != pin['containerchecksum']:
         raise ValueError(f"size or SHA-512 mismatch for {path.name}")
     if not cached:
