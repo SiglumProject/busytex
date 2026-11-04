@@ -1,19 +1,37 @@
 # busytex — TeX Live 2026 → WebAssembly
 
-SiglumProject fork of [busytex](https://github.com/busytex/busytex). Compiles TeX
-Live 2026 into a single multi-engine **WebAssembly** module (via Emscripten), plus a
-static **x86_64-linux** binary (via glibc) used as the build-time `install-tl` helper.
+This fork builds on [BusyTeX](https://github.com/busytex/busytex), which combines
+TeX Live programs into one native binary and one WebAssembly module. The Siglum
+build produces a multi-engine **WebAssembly** module via Emscripten and a static
+**x86_64-linux** binary used as the build-time `install-tl` helper.
 
-Engines compiled into the binary: `xetex`, `pdftex`, `luahbtex`, `bibtex8`,
-`xdvipdfmx`, `makeindex`, and the kpathsea tools (`kpsewhich`, `kpsestat`,
-`kpseaccess`, `kpsereadlink`).
+The binary includes `xetex`, `pdftex`, `luahbtex`, `bibtex8`, `xdvipdfmx`,
+`makeindex`, and the kpathsea tools (`kpsewhich`, `kpsestat`, `kpseaccess`,
+`kpsereadlink`).
 
-This repo is the engine build for the
-[`@siglum/engine`](https://github.com/SiglumProject/siglum) superproject, where it
-lives as the `busytex` submodule. It produces `busytex.wasm` and the packaged
-`texlive-basic.data`; the superproject splits those into browser bundles and serves
-them to the Siglum runtime. The fork's manual GitHub workflow can build and stage
-the matched WASM and TeX Live data as a draft release.
+## How this fork differs from upstream
+
+- **TeX Live 2026 build.** The fork pins the 2026 compiler source and installs
+  from the March 1, 2026 ISO after verifying its SHA-512. Upstream main at
+  `2beec8b` lists the same ISO URL, but its active extraction rule uses the 2023
+  ISO cache and its compiler source pin is TeX Live 2023.
+  [Upstream Makefile](https://github.com/busytex/busytex/blob/2beec8babad2f00b0429b548f51afcbcd8a53eb4/Makefile#L6-L10)
+- **June LaTeX formats.** The [package lock](texlive-packages.lock.json) pins
+  13 packages from the June 5 snapshot. The build verifies their size and
+  SHA-512, applies them to the March tree, and generates LaTeX2e `2026-06-01`
+  formats for pdfLaTeX, XeLaTeX, and LuaHBLaTeX. It fixes the generation clock
+  and uses the same combined WASM that will load the formats.
+- **WASM heap and toolchain.** The combined module starts with a 64 MiB heap
+  and can grow to 512 MiB. The upstream target at that revision sets 512 MiB.
+  This fork uses a digest-pinned Emscripten 3.1.43 image. The heap figures are
+  build settings. Actual browser memory use depends on the workload.
+  [Upstream link settings](https://github.com/busytex/busytex/blob/2beec8babad2f00b0429b548f51afcbcd8a53eb4/Makefile#L205-L211)
+
+[`@siglum/engine`](https://github.com/SiglumProject/siglum) pins this repo as
+its `busytex` submodule. The fork produces the WASM, JavaScript glue, and
+`texlive-basic.data`. Siglum splits that data into browser bundles and
+handles on-demand loading, package fetching, and caching in its own runtime.
+The editor exposes pdfLaTeX and XeLaTeX.
 
 ## Building
 
@@ -39,31 +57,21 @@ Individual stages (`./build-wasm.sh` with no args lists them all):
 ./build-wasm.sh bundles  # split into browser bundles (in the superproject)
 ```
 
-The engine uses TeX Live 2026 with the LaTeX2e 2026-06-01 format. The
-[package lock](texlive-packages.lock.json) records the 13 packages from the
-June 5 TeX Live snapshot that update the March ISO tree. The formats step
-checks each archive’s size and SHA-512 before applying the overlay. To reuse
-a cache, set `BUSYTEX_TEXLIVE_ARCHIVES` to a directory inside the checkout,
-relative to the checkout root when using the container wrapper. The default
-cache is `build/texlive-package-cache`.
+To reuse a package cache, set `BUSYTEX_TEXLIVE_ARCHIVES` to a directory inside
+the checkout. Use a path relative to the checkout root with the container
+wrapper. The default cache is `build/texlive-package-cache`.
 
-The generator uses the combined BusyTeX WASM to create pdfLaTeX, XeLaTeX and
-LuaHBLaTeX formats. It fixes the generation clock and checks the LaTeX version
-in each format dump. Packaging requires `build/texlive-basic-formats.sha256`,
-which records the lock, WASM, JavaScript glue and three format hashes.
-Run the formats step again after replacing the WASM or refreshing the
-TeX Live installation.
+Packaging verifies `build/texlive-basic-formats.sha256`, which records the
+lock, WASM, JavaScript glue, and three format hashes. Run the formats step
+again after replacing the WASM or refreshing the TeX Live installation.
+The manual GitHub workflow can stage the matched WASM and TeX Live data as a
+draft release.
 
 To update the engine source or base ISO, edit the pins at the top of the
 `Makefile` and use a fresh source and build tree. For a LaTeX format update,
 revise the package lock and repeat the build and browser checks. [Siglum build
 guide](https://github.com/SiglumProject/siglum/blob/main/docs/building.md) ·
 [TeX Live upgrade guide](https://github.com/SiglumProject/siglum/blob/main/docs/upgrading-texlive.md)
-
-## Upstream
-
-Forked from [busytex/busytex](https://github.com/busytex/busytex) — see upstream for
-the general roadmap and contribution ideas.
 
 ## License
 
