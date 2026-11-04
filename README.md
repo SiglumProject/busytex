@@ -33,6 +33,9 @@ its `busytex` submodule. The fork produces the WASM, JavaScript glue, and
 handles on-demand loading, package fetching, and caching in its own runtime.
 The editor exposes pdfLaTeX and XeLaTeX.
 
+For the Siglum browser SDK, CDN and public TeX package proxy, see the
+[hosted runtime and package API](https://github.com/SiglumProject/siglum#hosted-runtime-and-package-api).
+
 ## Building
 
 The build is driven by `./build-wasm.sh`, which runs each stage in a container. The
