@@ -253,6 +253,14 @@ source/texlive.patched: source/texlive.txt
 	sed -i '1i#include "cosmo_getpass.h"' $(abspath source/texlive/texk/dvipdfm-x/dvipdfmx.c)
 	touch $@
 
+# Emscripten's configure probes are extensionless Node scripts. Keep them in
+# a CommonJS scope when BusyTeX is checked out inside an ES module project.
+build/wasm/package.json:
+	mkdir -p $(@D)
+	printf '%s\n' '{"type":"commonjs"}' > $@
+
+build/wasm/texlive.configured build/wasm/expat/libexpat.a: | build/wasm/package.json
+
 build/%/texlive.configured: source/texlive.patched
 	mkdir -p $(basename $@)
 	echo '' > $(CACHE_TEXLIVE_$*)

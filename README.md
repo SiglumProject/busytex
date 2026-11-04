@@ -64,8 +64,29 @@ wrapper. The default cache is `build/texlive-package-cache`.
 Packaging verifies `build/texlive-basic-formats.sha256`, which records the
 lock, WASM, JavaScript glue, and three format hashes. Run the formats step
 again after replacing the WASM or refreshing the TeX Live installation.
-The manual GitHub workflow can stage the matched WASM and TeX Live data as a
-draft release.
+
+## WASM releases
+
+A push to `main` that changes build inputs runs the WASM workflow. It packages
+the matching compiler, glue, TeX Live data, and data loader as one versioned
+archive. The archive also includes the package lock, build versions, TeX Live
+license files, and source commit. The workflow extracts the archive, verifies
+the packed format hashes, and compiles a PDF from the extracted files before
+creating a GitHub release draft. Review the draft before publishing it.
+
+Download the archive and `SHA256SUMS` from
+[Releases](https://github.com/SiglumProject/busytex/releases). From the download
+directory, verify the archive, extract it, and run its Node.js smoke test:
+
+```shell
+sha256sum -c SHA256SUMS
+archive=$(awk 'NR == 1 { print $2 }' SHA256SUMS)
+tar -xzf "$archive"
+node "${archive%.tar.gz}/smoke-release.cjs"
+```
+
+The manual workflow can build the archive from a branch and stage a draft
+release when run from `main` with `create_release` enabled.
 
 To update the engine source or base ISO, edit the pins at the top of the
 `Makefile` and use a fresh source and build tree. For a LaTeX format update,

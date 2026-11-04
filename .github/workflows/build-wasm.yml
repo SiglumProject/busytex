@@ -1,10 +1,15 @@
 name: build-wasm
 
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '.github/workflows/test.yml'
   workflow_dispatch:
     inputs:
       create_release:
-        description: Create a draft GitHub release
+        description: Create a draft GitHub release from main
         type: boolean
         default: false
 
@@ -22,6 +27,8 @@ jobs:
       EMSCRIPTEN_VERSION: '3.1.43'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install prerequisites
         run: |
@@ -40,35 +47,47 @@ jobs:
           bash regen-formats.sh
           make build/wasm/texlive-basic.js
 
+      - name: Package and smoke-test the release archive
+        run: bash package-wasm-release.sh "$GITHUB_SHA"
+
       - uses: actions/upload-artifact@v4
         with:
           name: busytex-wasm
           if-no-files-found: error
           path: |
-            build/versions.txt
-            build/texlive-basic-formats.sha256
-            build/wasm/busytex.js
-            build/wasm/busytex.wasm
-            build/wasm/texlive-basic.js
-            build/wasm/texlive-basic.data
+            build/release/busytex-*.tar.gz
+            build/release/SHA256SUMS
 
   draft-release:
-    if: inputs.create_release
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.create_release)
     needs: build-wasm
     runs-on: ubuntu-22.04
+    concurrency: busytex-release-${{ github.sha }}
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: busytex-wasm
+          path: release
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: build_wasm_${{ github.sha }}_${{ github.run_id }}_${{ github.run_attempt }}
+        working-directory: release
+        shell: bash
         run: |
-          gh release create "$RELEASE_TAG" --draft --target "$GITHUB_SHA" \
-            --title "BusyTeX WASM build" \
-            versions.txt texlive-basic-formats.sha256 \
-            wasm/busytex.js wasm/busytex.wasm wasm/texlive-basic.js wasm/texlive-basic.data
+          shopt -s nullglob
+          archives=(busytex-*.tar.gz)
+          test "${#archives[@]}" -eq 1
+          archive="${archives[0]}"
+          sha256sum -c SHA256SUMS
+          tag="${archive%.tar.gz}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists."
+            exit 0
+          fi
+          gh release create "$tag" --draft --target "$GITHUB_SHA" \
+            --title "BusyTeX ${tag#busytex-}" \
+            --notes "Matched BusyTeX WASM, JavaScript glue and TeX Live data built from $GITHUB_SHA. Verify SHA256SUMS before extracting, then run node smoke-release.cjs in the archive directory." \
+            "$archive" SHA256SUMS
