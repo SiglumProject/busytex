@@ -34,7 +34,7 @@ handles on-demand loading, package fetching, and caching in its own runtime.
 The editor exposes pdfLaTeX and XeLaTeX.
 
 For the Siglum browser SDK, CDN and public TeX package proxy, see the
-[hosted runtime and package API](https://github.com/SiglumProject/siglum#hosted-runtime-and-package-api).
+[hosted runtime and package API](https://github.com/SiglumProject/siglum/blob/main/docs/usage.md#hosted-runtime-and-package-api).
 
 ## Building
 
