@@ -1,0 +1,10 @@
+{
+  "scalar": {
+    "bytes": 1162,
+    "sha256": "3e4d074fc8dc4646b2827b7eb0fb2cbaec531e9d5ce346f451633c0480bfc740"
+  },
+  "simd": {
+    "bytes": 1236,
+    "sha256": "3a67d98aa9d4560205a7926141cfc2ef449f46edec0659bb34973aaeb0849fc2"
+  }
+}

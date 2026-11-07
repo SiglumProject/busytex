@@ -97,6 +97,21 @@ revise the package lock and repeat the build and browser checks. [Siglum build
 guide](https://github.com/SiglumProject/siglum/blob/main/docs/building.md) ·
 [TeX Live upgrade guide](https://github.com/SiglumProject/siglum/blob/main/docs/upgrading-texlive.md)
 
+## Experimental browser optimizations
+
+The local performance branch adds split pdfTeX and native checkpoints for both
+pdfTeX and XeTeX, packed XeTeX tables, growable font storage and demand-loaded ICU
+data. The host retains a bounded sparse snapshot, checks consumed inputs before
+reuse, and can complete through the ordinary full-build path. Selecting the
+combined XeTeX binary does not disable its checkpoint hooks.
+
+See the [native checkpoint guide](experimental/checkpoint/README.md),
+[XeTeX recipe](experimental/checkpoint/xetex-recipe/README.md) and
+[ICU data recipe](experimental/checkpoint/native-preview/native-data/README.md).
+These experiments need matching SDK and runtime artifacts; they are separate
+from the published release workflow and do not claim arbitrary paragraph-only
+full PDFs or universally lower memory.
+
 ## License
 
 MIT

@@ -8,8 +8,13 @@
 #define extern  extern "C"
 #endif
 
-#ifdef BUSYTEX_PDFTEX 
+#ifdef BUSYTEX_PDFTEX
 extern int busymain_pdftex(int argc, char* argv[]);
+#ifndef BUSYTEX_XETEX
+/* The combined build gets the shared Web2C filename storage from XeTeX. */
+unsigned char *nameoffile;
+int namelength;
+#endif
 #endif
 #ifdef BUSYTEX_LUATEX
 //extern "C" int busymain_luatex(int argc, char* argv[]);

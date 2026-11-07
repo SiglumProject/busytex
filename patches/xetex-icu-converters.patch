@@ -1,0 +1,30 @@
+--- a/source/texlive/texk/web2c/xetexdir/XeTeXFontMgr_FC.cpp
++++ b/source/texlive/texk/web2c/xetexdir/XeTeXFontMgr_FC.cpp
+@@ -120,8 +120,10 @@
+                         bool preferredName = false;
+                         if (nameRec.platform_id == TT_PLATFORM_MACINTOSH
+                                 && nameRec.encoding_id == TT_MAC_ID_ROMAN && nameRec.language_id == 0) {
+-                            utf8name = convertToUtf8(macRomanConv, nameRec.string, nameRec.string_len);
+-                            preferredName = true;
++                            if (macRomanConv != NULL) {
++                                utf8name = convertToUtf8(macRomanConv, nameRec.string, nameRec.string_len);
++                                preferredName = true;
++                            }
+                         }
+                         else if ((nameRec.platform_id == TT_PLATFORM_APPLE_UNICODE)
+                                 || (nameRec.platform_id == TT_PLATFORM_MICROSOFT))
+@@ -320,9 +322,13 @@
+ 
+     UErrorCode err = U_ZERO_ERROR;
+     macRomanConv = ucnv_open("macintosh", &err);
++    // A reduced ICU data build can omit the legacy Macintosh converter.
++    // Its failure must not prevent the independent Unicode converters opening.
++    err = U_ZERO_ERROR;
+     utf16beConv = ucnv_open("UTF16BE", &err);
++    err = U_ZERO_ERROR;
+     utf8Conv = ucnv_open("UTF8", &err);
+-    if (err != 0) {
++    if (utf16beConv == NULL || utf8Conv == NULL) {
+         fprintf(stderr, "internal error; cannot read font names\n");
+         exit(3);
+     }

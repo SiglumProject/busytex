@@ -1,0 +1,47 @@
+--- a/source/texlive/texk/web2c/pdftexdir/writefont.c
++++ b/source/texlive/texk/web2c/pdftexdir/writefont.c
+@@ -522,6 +522,34 @@
+     pdfenddict();
+ }
+
++#ifdef __EMSCRIPTEN__
++/* A browser VFS can expose a deferred font as an empty first read.
++   Probe all used Type 1 outlines before embedding one can abort the pass. */
++static void preflight_type1_outlines(void)
++{
++    fd_entry *fd;
++    struct avl_traverser t;
++    if (fd_tree == NULL)
++        return;
++    avl_t_init(&t, fd_tree);
++    for (fd = (fd_entry *) avl_t_first(&t, fd_tree); fd != NULL;
++         fd = (fd_entry *) avl_t_next(&t)) {
++        ff_entry *ff;
++        FILE *font;
++        if (!is_type1(fd->fm) || !is_included(fd->fm))
++            continue;
++        ff = check_ff_exist(fd->fm->ff_name, false);
++        if (ff->ff_path == NULL)
++            continue;
++        font = fopen(ff->ff_path, FOPEN_RBIN_MODE);
++        if (font != NULL) {
++            (void) getc(font);
++            fclose(font);
++        }
++    }
++}
++#endif
++
+ static void write_fontdescriptors(void)
+ {
+     fd_entry *fd;
+@@ -610,6 +638,9 @@
+
+ void writefontstuff(void)
+ {
++#ifdef __EMSCRIPTEN__
++    preflight_type1_outlines();
++#endif
+     write_fontdescriptors();
+     write_fontencodings();      /* see writeenc.c */
+     write_fontdictionaries();

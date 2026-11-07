@@ -225,7 +225,7 @@ OPTS_BUSYTEX_COMPILE_wasm   = -DBUSYTEX_MAKEINDEX -DBUSYTEX_KPSE -DBUSYTEX_BIBTE
 OPTS_BUSYTEX_LINK = --static -static    -static-libstdc++ -static-libgcc
 
 OPTS_BUSYTEX_LINK_native =  $(OPTS_BUSYTEX_LINK)    -ldl -lm -pthread -lpthread -Wl,--unresolved-symbols=ignore-all
-OPTS_BUSYTEX_LINK_wasm   =  $(OPTS_BUSYTEX_LINK) -Wl,--unresolved-symbols=ignore-all -Wl,-error-limit=0 -sINITIAL_MEMORY=$(INITIAL_MEMORY) -sMAXIMUM_MEMORY=$(MAXIMUM_MEMORY) -sSTACK_SIZE=5242880 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=1 -sERROR_ON_UNDEFINED_SYMBOLS=0 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=busytex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
+OPTS_BUSYTEX_LINK_wasm   =  $(OPTS_BUSYTEX_LINK) -Wl,-error-limit=0 -sINITIAL_MEMORY=$(INITIAL_MEMORY) -sMAXIMUM_MEMORY=$(MAXIMUM_MEMORY) -sSTACK_SIZE=5242880 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=1 -sERROR_ON_UNDEFINED_SYMBOLS=1 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=busytex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
 
 ##############################################################################################################################
 
@@ -244,13 +244,24 @@ source/texmfrepo.txt:
 	$(PYTHON) extract-texlive-iso.py "$(URL_texlive_full_iso_cache)" "$(SHA512_texlive_full_iso)" $(basename $@)
 	find $(basename $@) > $@
 
-source/texlive.patched: source/texlive.txt
+source/texlive.patched: source/texlive.txt patches/pdftex-type1-preflight.patch patches/xetex-icu-converters.patch cosmo_getpass.h
+	@if patch -p1 --batch --forward --dry-run < patches/pdftex-type1-preflight.patch; then \
+		patch -p1 --batch --forward < patches/pdftex-type1-preflight.patch; \
+	else \
+		patch -p1 --batch --reverse --dry-run < patches/pdftex-type1-preflight.patch; \
+	fi
+	@if patch -p1 --batch --forward --dry-run < patches/xetex-icu-converters.patch; then \
+		patch -p1 --batch --forward < patches/xetex-icu-converters.patch; \
+	else \
+		patch -p1 --batch --reverse --dry-run < patches/xetex-icu-converters.patch; \
+	fi
 	# Cosmopolitan Libc doesn't support arguments with spaces; remove an extra trailing space here:
 	# https://github.com/TeX-Live/texlive-source/blob/tags/texlive-2023.0/libs/icu/icu-src/source/common/Makefile.in#L72
 	sed -i 's@" "@""@' $(abspath source/texlive/libs/icu/icu-src/source/common/Makefile.in)
 	# See the contents of `cosmo_getpass.h` for more details.
 	cp cosmo_getpass.h                    $(abspath source/texlive/texk/dvipdfm-x/cosmo_getpass.h)
-	sed -i '1i#include "cosmo_getpass.h"' $(abspath source/texlive/texk/dvipdfm-x/dvipdfmx.c)
+	grep -Fqx '#include "cosmo_getpass.h"' $(abspath source/texlive/texk/dvipdfm-x/dvipdfmx.c) || \
+		sed -i '1i#include "cosmo_getpass.h"' $(abspath source/texlive/texk/dvipdfm-x/dvipdfmx.c)
 	touch $@
 
 # Emscripten's configure probes are extensionless Node scripts. Keep them in
@@ -388,6 +399,8 @@ build/%/texlive/texk/bibtex-x/busytex_bibtex8.a: build/%/texlive.configured
 	+$(MAKE_$*) -C $(dir $@) bibtex8-bibtex.o $(OPTS_BIBTEX_$*)
 	$(AR_$*) -crs $@ $(dir $@)/bibtex8-*.o
 
+build/wasm/busytex.js: busytex.c build/wasm/texlive/texk/web2c/busytex_libpdftex.a build/wasm/texlive/texk/web2c/busytex_libxetex.a
+
 build/%/busytex build/%/busytex.js:
 	mkdir -p $(dir $@)
 	$(CC_$*)  -o    $(basename $@).o -c busytex.c  $(OPTS_BUSYTEX_COMPILE_$*) $(CFLAGS_OPT_$*)
@@ -396,9 +409,11 @@ build/%/busytex build/%/busytex.js:
 
 # Minimal pdfTeX-only build
 OBJ_DEPS_PDFTEX = $(addprefix texlive/libs/, libpng/libpng.a pplib/libpplib.a zlib/libz.a zziplib/libzzip.a xpdf/libxpdf.a) texlive/texk/kpathsea/.libs/libkpathsea.a
-OPTS_BUSYTEX_LINK_PDFTEX_wasm = $(OPTS_BUSYTEX_LINK) -Wl,--unresolved-symbols=ignore-all -Wl,-error-limit=0 -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=268435456 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=0 -sERROR_ON_UNDEFINED_SYMBOLS=0 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=pdftex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
+OPTS_BUSYTEX_LINK_PDFTEX_wasm = $(OPTS_BUSYTEX_LINK) -Wl,-error-limit=0 -sINITIAL_MEMORY=16777216 -sMAXIMUM_MEMORY=268435456 -sSTACK_SIZE=5242880 -sALLOW_MEMORY_GROWTH=1 -sEXIT_RUNTIME=0 -sINVOKE_RUN=0 -sASSERTIONS=0 -sFORCE_FILESYSTEM=1 -sLZ4=1 -sMODULARIZE=1 -sEXPORT_NAME=pdftex -sEXPORTED_FUNCTIONS='["_main", "_flush_streams"]' -sEXPORTED_RUNTIME_METHODS='["callMain", "FS", "ENV", "LZ4", "PATH"]'
 
-build/wasm/pdftex.js:
+build/wasm/xetex.js: busytex.c build/wasm/texlive/texk/web2c/busytex_libxetex.a
+
+build/wasm/pdftex.js: busytex.c build/wasm/texlive/texk/web2c/busytex_libpdftex.a
 	mkdir -p $(dir $@)
 	$(CC_wasm) -o build/wasm/pdftex.o -c busytex.c -DBUSYTEX_PDFTEX $(CFLAGS_OPT_wasm)
 	$(CXX_wasm) -o $@ build/wasm/pdftex.o $(addprefix build/wasm/texlive/texk/web2c/, $(OBJ_PDFTEX)) $(addprefix build/wasm/, $(OBJ_DEPS_PDFTEX)) $(addprefix build/wasm/texlive/texk/kpathsea/, $(OBJ_KPATHSEA)) $(OPTS_BUSYTEX_LINK_PDFTEX_wasm)
