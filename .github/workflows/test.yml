@@ -24,6 +24,7 @@ jobs:
           bash -n regen-formats.sh
           python3 -m py_compile apply-texlive-overlay.py emmake-jobserver.py extract-texlive-iso.py experimental/checkpoint/build-performance.py
           python3 experimental/checkpoint/native-preview/page-packet-recipe/test-derive-layout.py
+          python3 experimental/checkpoint/native-preview/page-packet-recipe/test-literal-grammar.py
           python3 experimental/checkpoint/test-build-support.py
 
       - name: Apply the locked TeX Live overlay

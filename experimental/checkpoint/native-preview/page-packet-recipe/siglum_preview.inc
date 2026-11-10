@@ -107,51 +107,98 @@ void siglum_preview_resource_event(int event)
         siglum_preview_resource_events_value |= event;
 }
 
-/* Native color stacks also use literal(), so permit only the narrow PDF
- * device-color grammar here. Any text/font/path/resource operator, special
- * prefix, delimiter or unrecognized literal fails closed. Raw text operators
- * can refer to glyphs that TeX's used-character bitmap never marked.
- */
-static int siglum_preview_is_color_literal(strnumber string)
+/* BEGIN literal grammar */
+/* Native color stacks and drawing packages (pgf, and so TikZ and tcolorbox)
+ * write through literal(). A literal is harmless to the page handoff when it
+ * can only change the graphics state or draw paths: it then cannot show a
+ * glyph, so TeX's used-character bitmaps stay complete, and the only named
+ * resource it can use is a graphics state, which the host compares between
+ * the old and the new page. Accepted, with exact operand counts:
+ *   q Q cm w J j M i d  m l c v y h re  S s f F f* B B* b b* n W W*
+ *   g G rg RG k K  and  /Name gs
+ * Anything else fails closed: text and font operators, images, forms,
+ * shadings, colour spaces, strings, dictionaries, comments. */
+static int siglum_preview_is_drawing_literal_bytes(const unsigned char *at, const unsigned char *end)
 {
-    int at, end, numbers = 0, start, digits, dots, length;
-    if (string < 0 || string >= strptr) return 0;
-    at = strstart[string]; end = strstart[string + 1];
-    if (end < at || end - at > 4096) return 0;
+    static const struct { const char *name; int numbers; } operators[] = {
+        {"q", 0}, {"Q", 0}, {"cm", 6}, {"w", 1}, {"J", 1}, {"j", 1}, {"M", 1}, {"i", 1},
+        {"m", 2}, {"l", 2}, {"c", 6}, {"v", 4}, {"y", 4}, {"h", 0}, {"re", 4},
+        {"S", 0}, {"s", 0}, {"f", 0}, {"F", 0}, {"f*", 0}, {"B", 0}, {"B*", 0}, {"b", 0}, {"b*", 0},
+        {"n", 0}, {"W", 0}, {"W*", 0},
+        {"g", 1}, {"G", 1}, {"rg", 3}, {"RG", 3}, {"k", 4}, {"K", 4},
+    };
+    int numbers = 0, in_array = 0, array = 0, name = 0, digits, dots, length, i, known;
+    const unsigned char *start;
+    if (end < at || end - at > 65536) return 0;
     while (at < end) {
-        while (at < end && strpool[at] <= 32) at++;
+        while (at < end && *at <= 32) at++;
         if (at == end) break;
-        if (strpool[at] == '+' || strpool[at] == '-' || strpool[at] == '.' ||
-            (strpool[at] >= '0' && strpool[at] <= '9')) {
+        if (*at == '[') {
+            if (in_array || array || name || numbers) return 0;
+            in_array = 1; at++;
+            continue;
+        }
+        if (*at == ']') {
+            if (!in_array) return 0;
+            in_array = 0; array = 1; numbers = 0; at++;
+            continue;
+        }
+        if (*at == '+' || *at == '-' || *at == '.' || (*at >= '0' && *at <= '9')) {
             digits = dots = 0;
-            if (strpool[at] == '+' || strpool[at] == '-') at++;
-            while (at < end && ((strpool[at] >= '0' && strpool[at] <= '9') || strpool[at] == '.')) {
-                if (strpool[at] == '.') dots++; else digits++;
+            if (*at == '+' || *at == '-') at++;
+            while (at < end && ((*at >= '0' && *at <= '9') || *at == '.')) {
+                if (*at == '.') dots++; else digits++;
                 at++;
             }
-            if (!digits || dots > 1 || ++numbers > 4) return 0;
-            if (at < end && strpool[at] > 32) return 0;
+            if (!digits || dots > 1 || name || ++numbers > 32) return 0;
+            if (at < end && *at > 32 && *at != ']' && !(in_array && *at == '[')) return 0;
+            continue;
+        }
+        if (in_array) return 0;
+        if (*at == '/') {
+            if (name || array || numbers) return 0;
+            start = ++at;
+            while (at < end && *at > 32 && *at != '/' && *at != '[' && *at != ']' && *at != '(' && *at != ')' &&
+                   *at != '<' && *at != '>' && *at != '{' && *at != '}' && *at != '%') at++;
+            if (at == start || at - start > 127 || (at < end && *at > 32)) return 0;
+            name = 1;
             continue;
         }
         start = at;
-        while (at < end && strpool[at] > 32) at++;
-        length = at - start;
-        if (length == 1 && (strpool[start] == 'g' || strpool[start] == 'G')) {
-            if (numbers != 1) return 0;
-        } else if (length == 2 && ((strpool[start] == 'r' && strpool[start + 1] == 'g') ||
-                                  (strpool[start] == 'R' && strpool[start + 1] == 'G'))) {
-            if (numbers != 3) return 0;
-        } else if (length == 1 && (strpool[start] == 'k' || strpool[start] == 'K')) {
-            if (numbers != 4) return 0;
-        } else return 0;
-        numbers = 0;
+        while (at < end && *at > 32 && *at != '[' && *at != ']' && *at != '/') at++;
+        length = (int)(at - start);
+        if (at < end && *at > 32) return 0;
+        if (name) {
+            if (length != 2 || start[0] != 'g' || start[1] != 's') return 0;
+        } else if (array) {
+            /* A dash pattern: an array of numbers, then the phase. */
+            if (length != 1 || start[0] != 'd' || numbers != 1) return 0;
+        } else {
+            known = 0;
+            for (i = 0; i < (int)(sizeof(operators) / sizeof(operators[0])); i++)
+                if ((int)strlen(operators[i].name) == length && !memcmp(operators[i].name, start, length)) {
+                    if (operators[i].numbers != numbers) return 0;
+                    known = 1;
+                    break;
+                }
+            if (!known) return 0;
+        }
+        numbers = 0; array = 0; name = 0;
     }
-    return numbers == 0;
+    return !numbers && !in_array && !array && !name;
+}
+/* END literal grammar */
+
+static int siglum_preview_is_drawing_literal(strnumber string)
+{
+    if (string < 0 || string >= strptr || strstart[string + 1] < strstart[string]) return 0;
+    return siglum_preview_is_drawing_literal_bytes((const unsigned char *)&strpool[strstart[string]],
+                                                    (const unsigned char *)&strpool[strstart[string + 1]]);
 }
 
 static void siglum_preview_literal_event(strnumber string)
 {
-    if (siglum_preview_target > 0 && !siglum_preview_yielded && !siglum_preview_is_color_literal(string))
+    if (siglum_preview_target > 0 && !siglum_preview_yielded && !siglum_preview_is_drawing_literal(string))
         siglum_preview_resource_events_value |= 8;
 }
 
