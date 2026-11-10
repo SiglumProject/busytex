@@ -26,7 +26,9 @@ jobs:
         run: |
           mkdir -p /work
           test ! -e /work/build
-          git -c safe.directory="$PWD" archive HEAD | tar -xf - -C /work
+          # The pinned container Git predates command-scoped safe.directory.
+          git config --global --add safe.directory "$(pwd -P)"
+          git archive HEAD | tar -xf - -C /work
           cd /work
           make source/texlive.txt source/expat.txt source/fontconfig.txt
           make -j4 native
