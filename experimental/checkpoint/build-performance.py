@@ -50,6 +50,7 @@ assert (work / 'build/wasm/busytex.wasm').is_file(), 'Build the clean combined b
 assert (work / 'build/wasm/pdftex.wasm').is_file(), 'Build the clean pdfTeX base first'
 if out.exists() and any(out.iterdir()): raise RuntimeError('Use an empty performance output directory')
 out.mkdir(parents=True, exist_ok=True)
+(out / 'build-provenance.json').write_text(json.dumps({'sourceCommit': os.environ.get('GITHUB_SHA'), 'toolchain': 'Emscripten 3.1.43', 'work': str(work), 'priorExperimentObjectInputs': False}, indent=2) + '\n')
 try:
     # Generate native checkpoint/page/resource boundaries from the fresh Web2C output.
     packet = out / 'pdf-packet'

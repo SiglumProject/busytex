@@ -2,6 +2,7 @@ name: Build performance compiler
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -23,6 +24,10 @@ jobs:
           apt-get install -y --no-install-recommends gperf p7zip-full icu-devtools file pkg-config libarchive-tools
       - name: Compile fresh base objects and optimized variants
         run: |
+          mkdir -p /work
+          test ! -e /work/build
+          git archive HEAD | tar -xf - -C /work
+          cd /work
           make source/texlive.txt source/expat.txt source/fontconfig.txt
           make -j4 native
           make -j4 wasm
@@ -33,11 +38,17 @@ jobs:
         with:
           name: performance-compiler
           path: |
-            build/performance/**/*.wasm
-            build/performance/**/*.js
-            build/performance/combined/native/
-            build/performance/combined/native-resources.json
-            build/performance/*.json
-            build/performance/toolchain.txt
+            /work/build/performance/**/*.wasm
+            /work/build/performance/**/*.js
+            /work/build/performance/combined/native/
+            /work/build/performance/combined/native-resources.json
+            /work/build/performance/**/*.json
+            /work/build/performance/**/*.c
+            /work/build/performance/**/*.h
+            /work/build/performance/**/*.inc
+            /work/build/performance/*.json
+            /work/build/performance/toolchain.txt
+            /work/build/wasm/busytex.js
+            /work/build/wasm/busytex.wasm
           if-no-files-found: error
           retention-days: 14

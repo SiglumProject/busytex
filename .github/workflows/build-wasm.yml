@@ -18,6 +18,7 @@ permissions:
 
 jobs:
   build-wasm:
+    if: github.ref != 'refs/heads/performance-optimization'
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     container:
@@ -57,6 +58,10 @@ jobs:
           path: |
             build/release/busytex-*.tar.gz
             build/release/SHA256SUMS
+
+  performance-compiler:
+    if: github.ref == 'refs/heads/performance-optimization'
+    uses: ./.github/workflows/build-performance.yml
 
   draft-release:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.create_release)

@@ -244,7 +244,7 @@ source/texmfrepo.txt:
 	$(PYTHON) extract-texlive-iso.py "$(URL_texlive_full_iso_cache)" "$(SHA512_texlive_full_iso)" $(basename $@)
 	find $(basename $@) > $@
 
-source/texlive.patched: source/texlive.txt patches/pdftex-type1-preflight.patch patches/xetex-icu-converters.patch cosmo_getpass.h
+source/texlive.patched: source/texlive.txt patches/pdftex-type1-preflight.patch patches/xetex-icu-converters.patch patches/freetype-jobserver.patch cosmo_getpass.h
 	@if patch -p1 --batch --forward --dry-run < patches/pdftex-type1-preflight.patch; then \
 		patch -p1 --batch --forward < patches/pdftex-type1-preflight.patch; \
 	else \
@@ -254,6 +254,11 @@ source/texlive.patched: source/texlive.txt patches/pdftex-type1-preflight.patch 
 		patch -p1 --batch --forward < patches/xetex-icu-converters.patch; \
 	else \
 		patch -p1 --batch --reverse --dry-run < patches/xetex-icu-converters.patch; \
+	fi
+	@if patch -p1 --batch --forward --dry-run < patches/freetype-jobserver.patch; then \
+		patch -p1 --batch --forward < patches/freetype-jobserver.patch; \
+	else \
+		patch -p1 --batch --reverse --dry-run < patches/freetype-jobserver.patch; \
 	fi
 	# Cosmopolitan Libc doesn't support arguments with spaces; remove an extra trailing space here:
 	# https://github.com/TeX-Live/texlive-source/blob/tags/texlive-2023.0/libs/icu/icu-src/source/common/Makefile.in#L72

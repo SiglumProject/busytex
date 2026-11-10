@@ -52,7 +52,8 @@ in the same container. The output directory must be empty and `/out` must be fre
 for the recipe's temporary stage alias. The script records commands, toolchain,
 source hashes and output hashes. It does not read old experiment directories.
 
-The manual **Build performance compiler** workflow performs that sequence without
+Dispatch **build-wasm** on the performance branch to call the artifact-only
+**Build performance compiler** workflow. It performs that sequence without
 publishing a release or deploying anything. Its compiler outputs still need
 matching generated formats, package indexes, SDK integration and browser tests
 before use as a complete runtime. macOS shared mounts may reject archived Unix
