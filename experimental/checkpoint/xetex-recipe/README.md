@@ -38,4 +38,6 @@ completed replay.
 The current pinned TeX configuration permits fifteen simultaneous input files.
 The prototype serializer has fixed input bookkeeping capacity; custom configurations
 raising the engine limit need an explicit capacity audit before enabling reuse.
-This recipe is uncommitted, unpublished and not enabled in a production build.
+This recipe is experimental and is not enabled in a production build. The parent
+`build-performance.py` pipeline rebuilds its dependencies from the same clean
+source tree.

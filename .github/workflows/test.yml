@@ -1,6 +1,8 @@
 name: Test BusyTeX build scripts
 
 on:
+  push:
+    branches: [performance-optimization]
   pull_request:
 
 permissions:
@@ -20,7 +22,8 @@ jobs:
         run: |
           bash -n build-wasm.sh
           bash -n regen-formats.sh
-          python3 -m py_compile apply-texlive-overlay.py emmake-jobserver.py extract-texlive-iso.py
+          python3 -m py_compile apply-texlive-overlay.py emmake-jobserver.py extract-texlive-iso.py experimental/checkpoint/build-performance.py
+          python3 experimental/checkpoint/native-preview/page-packet-recipe/test-derive-layout.py
 
       - name: Apply the locked TeX Live overlay
         shell: bash

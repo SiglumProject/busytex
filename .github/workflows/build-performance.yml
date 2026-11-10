@@ -1,0 +1,43 @@
+name: Build performance compiler
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compiler:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    container:
+      image: emscripten/emsdk@sha256:e856cd59d54fd143366c2df314043d63a1ca23ab43521e0f30f9d9a7ce6d43e0
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install build prerequisites
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends gperf p7zip-full icu-devtools file pkg-config libarchive-tools
+      - name: Compile fresh base objects and optimized variants
+        run: |
+          make source/texlive.txt source/expat.txt source/fontconfig.txt
+          make -j4 native
+          make -j4 wasm
+          make -j4 wasm-pdftex
+          python3 experimental/checkpoint/build-performance.py --work "$PWD" --output "$PWD/build/performance"
+      - name: Upload compiler artifacts and provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-compiler
+          path: |
+            build/performance/**/*.wasm
+            build/performance/**/*.js
+            build/performance/combined/native/
+            build/performance/combined/native-resources.json
+            build/performance/*.json
+            build/performance/toolchain.txt
+          if-no-files-found: error
+          retention-days: 14

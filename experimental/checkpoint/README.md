@@ -24,7 +24,7 @@ if a document needs to write protected assets.
 The tested editor uses bounded Rust SIMD compact snapshots, the existing SDK
 resolver and a full-build fallback. Native correctness and browser/offline
 artifacts are recorded locally under the Siglum test workspace checkpoint
-prototype. These sources are experimental and have not been pushed or released.
+prototype. These sources are experimental and have not been released.
 
 ## pdfTeX and XeTeX integration
 
@@ -40,3 +40,20 @@ provides exact repeated-page comparison for the bounded host snapshot. The
 resource package and loads data on demand. Matching engine, host SDK and immutable
 resource assets are required; unsupported native capabilities use a full build
 with an explicit reason. The ordinary embedded-data build remains available.
+
+
+## Rebuild from fresh objects
+
+Use the pinned Emscripten image from `build-wasm.sh` on a Linux filesystem. Start
+with an empty build tree, fetch the pinned source archives, then run `make native`,
+`make wasm` and `make wasm-pdftex`. Run
+`python3 experimental/checkpoint/build-performance.py --work "$PWD" --output "$PWD/build/performance"`
+in the same container. The output directory must be empty and `/out` must be free
+for the recipe's temporary stage alias. The script records commands, toolchain,
+source hashes and output hashes. It does not read old experiment directories.
+
+The manual **Build performance compiler** workflow performs that sequence without
+publishing a release or deploying anything. Its compiler outputs still need
+matching generated formats, package indexes, SDK integration and browser tests
+before use as a complete runtime. macOS shared mounts may reject archived Unix
+permissions; use a fresh Linux volume for the source and build directories.
