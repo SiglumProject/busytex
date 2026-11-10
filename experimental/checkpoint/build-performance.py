@@ -6,6 +6,7 @@ The container owns /out; no object/archive inputs from earlier experiments.
 """
 import argparse, hashlib, json, os, re, shlex, shutil, subprocess
 from pathlib import Path
+from build_support import replace_link_inputs
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--work', type=Path, default=Path('/work'))
@@ -103,8 +104,7 @@ try:
         'build/wasm/texlive/texk/kpathsea/.libs/libkpathsea.a': str(pdf_io / 'libkpathsea.a'),
         'build/wasm/texlive/libs/icu/icu-build/lib/libicudata.a': str(icu / 'stubdata/libicudata.a'),
     }
-    for old in replacements: assert link.count(old) == 1, old
-    link = [replacements.get(x, x) for x in link]
+    link, replacement_counts = replace_link_inputs(link, replacements)
     checkpoint = ['engine', 'arm', 'disarm', 'resume', 'paused', 'prepare_snapshot', 'refresh_inputs', 'line', 'next_line', 'total_pages', 'input_ptr', 'input_index', 'input_state', 'buffer_loc', 'buffer_limit', 'buffer_start', 'buffer', 'input_stack', 'filename', 'input_fd', 'input_offset']
     exports = ['_malloc', '_free', '_siglum_io_api_version', '_siglum_io_register_file', '_siglum_icu_use_files', '_siglum_icu_probe', '_siglum_xetex_table_profile']
     exports += ['_siglum_xetex_font_memory_' + x for x in ['configure', 'capacity', 'limit', 'growth_count']]
@@ -112,6 +112,14 @@ try:
     link = link_options(link, exports, ['UTF8ToString', 'stringToUTF8', 'lengthBytesUTF8', 'stackSave', 'stackRestore', 'NODEFS'])
     if '-lnodefs.js' not in link: link.append('-lnodefs.js')
     link.append(str(xe / 'native-assets.o'))
+    linked_inputs = {}
+    for value in link:
+        if Path(value).suffix not in ['.o', '.a']:
+            continue
+        path = (work / value).resolve()
+        path.relative_to(work)  # Explicit object/archive inputs belong to this clean tree.
+        linked_inputs[value] = {'size': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'occurrences': link.count(value)}
+    (xe / 'link-inputs.json').write_text(json.dumps({'replacedOccurrences': replacement_counts, 'files': linked_inputs}, indent=2) + '\n')
     run(link)
     packs = list((icu / 'data').rglob('icudt*l.dat'))
     packs = [p for p in packs if p.is_file()]

@@ -22,7 +22,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends gperf p7zip-full icu-devtools file pkg-config libarchive-tools
-      - name: Compile fresh base objects and optimized variants
+      - name: Prepare fresh pinned source
         run: |
           mkdir -p /work
           test ! -e /work/build
@@ -31,10 +31,18 @@ jobs:
           git archive HEAD | tar -xf - -C /work
           cd /work
           make source/texlive.txt source/expat.txt source/fontconfig.txt
-          make -j4 native
-          make -j4 wasm
-          make -j4 wasm-pdftex
-          python3 experimental/checkpoint/build-performance.py --work "$PWD" --output "$PWD/build/performance"
+      - name: Compile native helpers and control
+        working-directory: /work
+        run: make -j4 native
+      - name: Compile combined WASM control
+        working-directory: /work
+        run: make -j4 wasm
+      - name: Compile split pdfTeX control
+        working-directory: /work
+        run: make -j4 wasm-pdftex
+      - name: Compile optimized variants from fresh inputs
+        working-directory: /work
+        run: python3 experimental/checkpoint/build-performance.py --work "$PWD" --output "$PWD/build/performance"
       - name: Upload compiler artifacts and provenance
         uses: actions/upload-artifact@v4
         with:
@@ -54,3 +62,16 @@ jobs:
             /work/build/wasm/busytex.wasm
           if-no-files-found: error
           retention-days: 14
+      - name: Preserve failed variant diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-build-diagnostics
+          path: |
+            /work/build/performance/**/*.json
+            /work/build/performance/**/*.c
+            /work/build/performance/**/*.h
+            /work/build/performance/**/*.inc
+            /work/build/performance/toolchain.txt
+          if-no-files-found: ignore
+          retention-days: 7
