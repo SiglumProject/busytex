@@ -26,7 +26,7 @@ jobs:
         run: |
           mkdir -p /work
           test ! -e /work/build
-          git archive HEAD | tar -xf - -C /work
+          git -c safe.directory="$PWD" archive HEAD | tar -xf - -C /work
           cd /work
           make source/texlive.txt source/expat.txt source/fontconfig.txt
           make -j4 native
