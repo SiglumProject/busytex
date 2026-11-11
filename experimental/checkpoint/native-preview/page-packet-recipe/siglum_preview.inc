@@ -460,3 +460,153 @@ const unsigned char *siglum_preview_font_attr_data(int f)
 {
     return siglum_preview_font_attr_length(f) ? strpool + strstart[pdffontattr[f]] : NULL;
 }
+
+
+/* Where the engine's state lives, for comparing two runs at the same point
+ * (the convergence check: has a run after an edit reached the state the
+ * previous run had here?). Regions are (name, address, bytes); scalars are
+ * listed with their own size. The host decides per name how a region is
+ * compared: as state, as output position, or not at all. */
+int siglum_state_api_version(void) { return 1; }
+extern int siglum_state_synctex(int which);
+extern int siglum_state_zlib_output(int which);
+/* A C stream as this C library lays it out: the structure, then its buffer. */
+#define SIGLUM_STATE_STREAM_BYTES (152 + 1024)
+static const char *siglum_state_name_value = "";
+static int siglum_state_address_value = 0;
+static int siglum_state_length_value = 0;
+
+static int siglum_state_set(const char *name, const void *address, long length)
+{
+    siglum_state_name_value = name;
+    siglum_state_address_value = (int)(size_t)address;
+    siglum_state_length_value = (int)(length < 0 ? 0 : length);
+    return 0;
+}
+
+int siglum_state_region(int index)
+{
+    switch (index) {
+    case 0: return siglum_state_set("mem.variable", zmem + memmin, (long)(lomemmax - memmin + 1) * (long)sizeof(memoryword));
+    case 1: return siglum_state_set("mem.gap", zmem + lomemmax + 1, (long)(himemmin - lomemmax - 1) * (long)sizeof(memoryword));
+    case 2: return siglum_state_set("mem.single", zmem + himemmin, (long)(memend - himemmin + 1) * (long)sizeof(memoryword));
+    case 3: return siglum_state_set("mem.beyond", zmem + memend + 1, (long)(memmax - memend) * (long)sizeof(memoryword));
+    case 4: return siglum_state_set("eqtb", zeqtb, (long)(eqtbtop + 1) * (long)sizeof(memoryword));
+    case 5: return siglum_state_set("hash", hash, (long)(eqtbtop + 1) * (long)sizeof(twohalves));
+    case 6: return siglum_state_set("strpool.used", strpool, (long)poolptr);
+    case 7: return siglum_state_set("strpool.unused", strpool + poolptr, (long)(poolsize - poolptr));
+    case 8: return siglum_state_set("strstart", strstart, (long)(maxstrings + 1) * (long)sizeof(poolpointer));
+    case 9: return siglum_state_set("fontinfo.used", fontinfo, (long)fmemptr * (long)sizeof(fmemoryword));
+    case 10: return siglum_state_set("fontinfo.unused", fontinfo + fmemptr, (long)(fontmemsize - fmemptr) * (long)sizeof(fmemoryword));
+    case 11: return siglum_state_set("savestack.used", savestack, (long)saveptr * (long)sizeof(memoryword));
+    case 12: return siglum_state_set("savestack.unused", savestack + saveptr, (long)(savesize - saveptr) * (long)sizeof(memoryword));
+    case 13: return siglum_state_set("pdfmem.used", pdfmem, (long)pdfmemptr * (long)sizeof(integer));
+    case 14: return siglum_state_set("pdfmem.unused", pdfmem + pdfmemptr, (long)(pdfmemsize - pdfmemptr) * (long)sizeof(integer));
+    case 15: return siglum_state_set("pdfbuf.pending", pdfbuf, (long)pdfptr);
+    case 16: return siglum_state_set("pdfbuf.stale", pdfbuf + pdfptr, (long)(pdfbufsize - pdfptr));
+    case 17: return siglum_state_set("pdfosbuf", pdfosbuf, (long)pdfosbufsize);
+    case 18: return siglum_state_set("objtab.used", objtab, (long)(objptr + 1) * (long)sizeof(objentry));
+    case 19: return siglum_state_set("objtab.unused", objtab + objptr + 1, (long)(objtabsize - objptr - 1) * (long)sizeof(objentry));
+    case 20: return siglum_state_set("buffer", buffer, (long)bufsize + 1);
+    case 21: return siglum_state_set("pdfgone", &pdfgone, sizeof(pdfgone));
+    case 22: return siglum_state_set("pdfsaveoffset", &pdfsaveoffset, sizeof(pdfsaveoffset));
+    case 23: return siglum_state_set("pdfstreamlengthoffset", &pdfstreamlengthoffset, sizeof(pdfstreamlengthoffset));
+    case 24: return siglum_state_set("termoffset", &termoffset, sizeof(termoffset));
+    case 25: return siglum_state_set("fileoffset", &fileoffset, sizeof(fileoffset));
+    case 26: return siglum_state_set("avail", &avail, sizeof(avail));
+    case 27: return siglum_state_set("rover", &rover, sizeof(rover));
+    case 28: return siglum_state_set("dynused", &dynused, sizeof(dynused));
+    case 29: return siglum_state_set("varused", &varused, sizeof(varused));
+    case 30: return siglum_state_set("pdfptr", &pdfptr, sizeof(pdfptr));
+    case 31: return siglum_state_set("nest.used", nest, (long)(nestptr + 1) * (long)sizeof(liststaterecord));
+    case 32: return siglum_state_set("nest.unused", nest + nestptr + 1, (long)(nestsize - nestptr) * (long)sizeof(liststaterecord));
+    case 33: return siglum_state_set("inputstack.used", inputstack, (long)(inputptr + 1) * (long)sizeof(instaterecord));
+    case 34: return siglum_state_set("inputstack.unused", inputstack + inputptr + 1, (long)(stacksize - inputptr) * (long)sizeof(instaterecord));
+    case 35: return siglum_state_set("paramstack.used", paramstack, (long)paramptr * (long)sizeof(halfword));
+    case 36: return siglum_state_set("paramstack.unused", paramstack + paramptr, (long)(paramsize - paramptr) * (long)sizeof(halfword));
+    case 37: return siglum_state_set("buffer.unused", buffer + first, (long)(bufsize + 1 - first));
+    case 38: return siglum_state_set("file.log", logfile, logfile ? SIGLUM_STATE_STREAM_BYTES : 0);
+    case 39: return siglum_state_set("file.pdf", pdffile, pdffile ? SIGLUM_STATE_STREAM_BYTES : 0);
+    case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
+    case 48: case 49: case 50: case 51: case 52: case 53: case 54: case 55:
+        return siglum_state_set("file.write", writefile[index - 40], writeopen[index - 40] && writefile[index - 40] ? SIGLUM_STATE_STREAM_BYTES : 0);
+    case 56: return siglum_state_set("pdfcharused", pdfcharused, pdfcharused ? (long)(fontmax + 1) * (long)sizeof(charusedarray) : 0);
+    case 57: return siglum_state_set("synctex.ctxt", (void *)(size_t)siglum_state_synctex(0), siglum_state_synctex(1));
+    case 58: return siglum_state_set("synctex.file", (void *)(size_t)siglum_state_synctex(2), siglum_state_synctex(2) ? SIGLUM_STATE_STREAM_BYTES : 0);
+    case 59: return siglum_state_set("zip.stream", (void *)(size_t)siglum_state_zlib_output(0), siglum_state_zlib_output(0) ? siglum_state_zlib_output(1) : 0);
+    case 60: return siglum_state_set("zip.buffer", (void *)(size_t)siglum_state_zlib_output(2), siglum_state_zlib_output(2) ? siglum_state_zlib_output(3) : 0);
+    default: return -1;
+    }
+}
+const char *siglum_state_region_name(void) { return siglum_state_name_value; }
+int siglum_state_region_address(void) { return siglum_state_address_value; }
+int siglum_state_region_length(void) { return siglum_state_length_value; }
+int siglum_state_objentry_size(void) { return (int)sizeof(objentry); }
+
+/* How many single-word nodes are on the free list (a linear walk). */
+int siglum_state_free_single_count(void)
+{
+    halfword p = avail; int count = 0;
+    while (p != SIGLUM_PREVIEW_NIL && count < 50000000) { count++; p = zmem[p].hh.v.RH; }
+    return count;
+}
+/* Marks free memory in a caller-supplied byte map with one byte per memory
+ * word, indexed from memmin: 1 single-word free node, 2 inside a free
+ * variable-size block. Returns the number of words marked, or -1. */
+int siglum_state_mark_free(unsigned char *map, int words)
+{
+    halfword p; int marked = 0, guard = 0;
+    if (!map || words < memmax - memmin + 1) return -1;
+    for (p = avail; p != SIGLUM_PREVIEW_NIL && guard < 50000000; p = zmem[p].hh.v.RH, guard++) {
+        if (p < memmin || p > memmax) return -2;
+        if (!map[p - memmin]) { map[p - memmin] = 1; marked++; }
+    }
+    p = rover; guard = 0;
+    do {
+        integer size = zmem[p].hh.v.LH, i;
+        if (p < memmin || p > lomemmax || size < 2 || p + size > lomemmax + 1) return -3;
+        for (i = 0; i < size; i++) if (!map[p + i - memmin]) { map[p + i - memmin] = 2; marked++; }
+        p = zmem[p + 1].hh.v.RH;
+    } while (p != rover && ++guard < 50000000);
+    return marked;
+}
+int siglum_state_memmin(void) { return memmin; }
+int siglum_state_memmax(void) { return memmax; }
+
+/* Where variable-size nodes begin. TeX records a size only in a free block; a
+ * comparison of two runs has to know where each live node starts and ends.
+ * One bit per memory word: set at the first word of every block handed out or
+ * given back, and at the word after its last. Bits inside a block handed out
+ * are cleared, so stale marks never split a live node. */
+static unsigned char *siglum_state_bounds = NULL;
+static int siglum_state_bounds_bits = 0;
+#define SIGLUM_BOUND_SET(i) (siglum_state_bounds[(i) >> 3] |= (unsigned char)(1u << ((i) & 7)))
+#define SIGLUM_BOUND_CLEAR(i) (siglum_state_bounds[(i) >> 3] &= (unsigned char)~(1u << ((i) & 7)))
+static int siglum_state_bounds_ready(void)
+{
+    if (siglum_state_bounds) return 1;
+    siglum_state_bounds_bits = memmax - memmin + 2;
+    siglum_state_bounds = (unsigned char *)calloc((size_t)(siglum_state_bounds_bits + 7) / 8, 1);
+    return siglum_state_bounds != NULL;
+}
+void siglum_state_node_allocated(halfword r, integer s)
+{
+    integer at = r - memmin, i;
+    if (!siglum_state_bounds_ready() || at < 0 || s < 1 || at + s >= siglum_state_bounds_bits) return;
+    SIGLUM_BOUND_SET(at);
+    for (i = 1; i < s; i++) SIGLUM_BOUND_CLEAR(at + i);
+    SIGLUM_BOUND_SET(at + s);
+}
+void siglum_state_node_freed(halfword p, halfword s)
+{
+    integer at = p - memmin;
+    if (!siglum_state_bounds_ready() || at < 0 || s < 1 || at + s >= siglum_state_bounds_bits) return;
+    SIGLUM_BOUND_SET(at);
+    SIGLUM_BOUND_SET(at + s);
+}
+int siglum_state_node_bounds(void) { return (int)(size_t)siglum_state_bounds; }
+int siglum_state_node_bounds_bits(void) { return siglum_state_bounds_bits; }
+int siglum_state_lomemmax(void) { return lomemmax; }
+int siglum_state_himemmin(void) { return himemmin; }
+int siglum_state_rover(void) { return rover; }
+int siglum_state_mem(void) { return (int)(size_t)zmem; }
