@@ -81,7 +81,7 @@ exports = [
     '_siglum_finalize_api_version', '_siglum_finalize_enable', '_siglum_finalize_paused',
     '_siglum_finalize_request_count', '_siglum_finalize_request_name',
     '_siglum_finalize_request_kind', '_siglum_finalize_request_overflow',
-    '_siglum_finalize_unsupported_count', '_siglum_finalize_resume',
+    '_siglum_finalize_unsupported_count', '_siglum_finalize_resume', '_siglum_checkpoint_finish',
     '_siglum_profile_enable', '_siglum_profile_reset', '_siglum_profile_get_time',
     '_siglum_profile_get_count', '_siglum_profile_get_bytes', '_siglum_profile_phase_count',
 ]

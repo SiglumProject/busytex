@@ -48,6 +48,22 @@ int siglum_finalize_resume(void)
     readyalready = 0;
     return (history != 0 && history != 1) ? 2 : 0;
 }
+
+/* End the run where it is paused, as if the input had ended there: the pages
+ * shipped so far become a complete PDF. The instance is finished afterwards;
+ * a host that wants to go on restores a snapshot taken before this call.
+ * Returns 3 when fonts must be supplied first (then siglum_finalize_resume). */
+int siglum_checkpoint_finish(void)
+{
+    if (!siglum_checkpoint_is_paused) return -1;
+    siglum_checkpoint_is_paused = 0;
+    if (siglum_finalize_prepare()) return 3;
+    finalcleanup();
+    closefilesandterminate();
+    fflush(stdout);
+    readyalready = 0;
+    return (history != 0 && history != 1) ? 2 : 0;
+}
 '''
 (args.out / 'pdftexini.c').write_text(ini)
 for name in ('siglum_finalize.h', 'siglum_finalize.inc'):
