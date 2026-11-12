@@ -87,10 +87,32 @@ wrapper_source += [r'''
 #include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
-/* The C library's free and realloc are weak: these take their place and reach
- * the allocator through its builtin names. */
+/* The C library's malloc, calloc, free and realloc are weak: these take their
+ * place and reach the allocator through its builtin names. */
 extern void emscripten_builtin_free(void *);
 extern void *emscripten_builtin_malloc(size_t);
+/* Memory above this has never been handed out and is still zero. Below it a
+ * block can hold what the allocator wrote there while it was free, which
+ * depends on the order of earlier requests: a block is handed out cleared, up
+ * to its usable size, so that two runs in the same state hold the same bytes. */
+static char *siglum_heap_used_to = NULL;
+void *malloc(size_t size)
+{
+    char *block = (char *)emscripten_builtin_malloc(size);
+    if (block) {
+        char *end = block + malloc_usable_size(block);
+        if (block < siglum_heap_used_to) memset(block, 0, (size_t)((end < siglum_heap_used_to ? end : siglum_heap_used_to) - block));
+        if (end > siglum_heap_used_to) siglum_heap_used_to = end;
+    }
+    return block;
+}
+void *calloc(size_t count, size_t size)
+{
+    size_t total = count * size;
+    if (size && total / size != count) return NULL;
+    return malloc(total);
+}
+int siglum_state_heap_mark(int which) { return which ? (int)sizeof(siglum_heap_used_to) : (int)(size_t)&siglum_heap_used_to; }
 void free(void *pointer)
 {
     if (pointer) memset(pointer, 0, malloc_usable_size(pointer));
@@ -99,10 +121,10 @@ void free(void *pointer)
 void *realloc(void *pointer, size_t size)
 {
     void *moved; size_t old;
-    if (!pointer) return emscripten_builtin_malloc(size);
+    if (!pointer) return malloc(size);
     if (!size) { free(pointer); return NULL; }
     old = malloc_usable_size(pointer);
-    moved = emscripten_builtin_malloc(size);
+    moved = malloc(size);
     if (!moved) return NULL;
     memcpy(moved, pointer, old < size ? old : size);
     free(pointer);
@@ -209,7 +231,7 @@ exports = [
     '_siglum_preview_guard_object_status', '_siglum_preview_resource_events',
     '_siglum_preview_font_global',
     '_siglum_state_region', '_siglum_state_region_name', '_siglum_state_region_address', '_siglum_state_region_length',
-    '_siglum_state_zlib_block', '_siglum_state_zlib_output', '_siglum_state_api_version', '_siglum_state_objentry_size', '_siglum_state_free_single_count', '_siglum_state_mark_free', '_siglum_state_memmin', '_siglum_state_memmax',
+    '_siglum_state_zlib_block', '_siglum_state_zlib_output', '_siglum_state_heap_mark', '_siglum_state_api_version', '_siglum_state_objentry_size', '_siglum_state_free_single_count', '_siglum_state_mark_free', '_siglum_state_memmin', '_siglum_state_memmax',
     '_siglum_state_node_bounds', '_siglum_state_node_bounds_bits', '_siglum_state_lomemmax', '_siglum_state_himemmin', '_siglum_state_rover', '_siglum_state_mem',
     '_siglum_finalize_api_version', '_siglum_finalize_enable', '_siglum_finalize_paused',
     '_siglum_finalize_request_count', '_siglum_finalize_request_name',

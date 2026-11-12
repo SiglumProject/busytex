@@ -467,9 +467,10 @@ const unsigned char *siglum_preview_font_attr_data(int f)
  * previous run had here?). Regions are (name, address, bytes); scalars are
  * listed with their own size. The host decides per name how a region is
  * compared: as state, as output position, or not at all. */
-int siglum_state_api_version(void) { return 1; }
+int siglum_state_api_version(void) { return 2; }
 extern int siglum_state_synctex(int which);
 extern int siglum_state_zlib_output(int which);
+extern int siglum_state_heap_mark(int which);
 /* A C stream as this C library lays it out: the structure, then its buffer. */
 #define SIGLUM_STATE_STREAM_BYTES (152 + 1024)
 static const char *siglum_state_name_value = "";
@@ -535,7 +536,20 @@ int siglum_state_region(int index)
     case 58: return siglum_state_set("synctex.file", (void *)(size_t)siglum_state_synctex(2), siglum_state_synctex(2) ? SIGLUM_STATE_STREAM_BYTES : 0);
     case 59: return siglum_state_set("zip.stream", (void *)(size_t)siglum_state_zlib_output(0), siglum_state_zlib_output(0) ? siglum_state_zlib_output(1) : 0);
     case 60: return siglum_state_set("zip.buffer", (void *)(size_t)siglum_state_zlib_output(2), siglum_state_zlib_output(2) ? siglum_state_zlib_output(3) : 0);
-    default: return -1;
+    case 61: return siglum_state_set("heap.mark", (void *)(size_t)siglum_state_heap_mark(0), siglum_state_heap_mark(1));
+    case 62: case 63: case 64: case 65: case 66: case 67: case 68: case 69:
+    case 70: case 71: case 72: case 73: case 74: case 75: case 76: case 77:
+        /* \read streams. After siglum_checkpoint_prepare_snapshot() a stream read from
+         * holds no read-ahead: what is left in its buffer is not state. */
+        return siglum_state_set("file.read", readfile[index - 62], readopen[index - 62] != 2 && readfile[index - 62] ? SIGLUM_STATE_STREAM_BYTES : 0);
+    default:
+        /* The source files being read, outermost first. */
+        if (index >= 78 && index < 78 + 127) {
+            int level = index - 77;
+            FILE *stream = level <= inopen && fullsourcefilenamestack[level] ? inputfile[level] : NULL;
+            return siglum_state_set("file.input", stream, stream ? SIGLUM_STATE_STREAM_BYTES : 0);
+        }
+        return -1;
     }
 }
 const char *siglum_state_region_name(void) { return siglum_state_name_value; }
